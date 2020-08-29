@@ -35,10 +35,10 @@ provider:
 
 resources:
   Resources:
-    webhookData:
+    GRWebhookData:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: webhookData
+        TableName: GRWebhookData
         BillingMode: PAY_PER_REQUEST
         PointInTimeRecoverySpecification:
           PointInTimeRecoveryEnabled: true

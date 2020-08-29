@@ -1,15 +1,14 @@
 from utility.util import *
-# from utility.util_datastores import get_s3_file, write_s3_file
+from utility.util_datastores import write_dynamodb_item
 
 import os
 from datetime import datetime
 import logging
 logger = logging.getLogger()
 
-from more_itertools import unique_everseen
-
 import boto3
-##############################################
+
+############################################################################################
 
 
 def lambda_handler(event, context):
@@ -35,11 +34,9 @@ def lambda_handler(event, context):
         "refunded": webhook_data["refunded"],
     }
 
+    write_dynamodb_item(data_to_write, "GRWebhookData", **kwargs)
 
-    logging.info('start')
-    logging.info(datetime.now())
-
-
-    # return package_response(result_lod, 200)
+    return package_response("Sucess", 200)
 
 
+############################################################################################
