@@ -17,21 +17,6 @@ provider:
   iamRoleStatements:
     - Effect: Allow
       Action:
-        - s3:GetObject
-        - s3:PutObject
-        - s3:ListBucket
-        - s3:GetBucketLocation
-        - s3:ListObjects
-      Resource:
-        - "arn:aws:s3:::raw-scrape-results-${env:AWS_ACCOUNT_ID}/*"
-        - "arn:aws:s3:::raw-scrape-results-${env:AWS_ACCOUNT_ID}"
-    - Effect: Allow
-      Action:
-        - lambda:InvokeFunction
-        - lambda:InvokeAsync
-      Resource: "*"
-    - Effect: Allow
-      Action:
         - dynamodb:GetItem
         - dynamodb:PutItem
         - dynamodb:UpdateItem
@@ -50,7 +35,6 @@ provider:
 
 resources:
   Resources:
-
     webhookData:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -65,10 +49,16 @@ resources:
             AttributeType: N
           - AttributeName: order_number
             AttributeType: N  # Number
+          - AttributeName: product_id
+            AttributeType: S
           - AttributeName: value
             AttributeType: N
           - AttributeName: offer_code
             AttributeType: S
+          - AttributeName: country
+            AttributeType: S
+          - AttributeName: refunded
+            AttributeType: BOOL
         KeySchema:
           - AttributeName: email
             KeyType: HASH   # partition key
