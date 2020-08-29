@@ -1,0 +1,91 @@
+
+service: GR-Webhook
+
+provider:
+  name: aws
+  runtime: python3.7
+  stage: prod
+  region: us-west-1
+  logRetentionInDays: 120
+  versionFunctions: true
+  tags:
+    deployment: serverless.com
+    project: GR-Webhook
+  environment:
+#    NODE_ENV: ${env:NODE_ENV}
+
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - s3:GetObject
+        - s3:PutObject
+        - s3:ListBucket
+        - s3:GetBucketLocation
+        - s3:ListObjects
+      Resource:
+        - "arn:aws:s3:::raw-scrape-results-${env:AWS_ACCOUNT_ID}/*"
+        - "arn:aws:s3:::raw-scrape-results-${env:AWS_ACCOUNT_ID}"
+    - Effect: Allow
+      Action:
+        - lambda:InvokeFunction
+        - lambda:InvokeAsync
+      Resource: "*"
+    - Effect: Allow
+      Action:
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+        - dynamodb:BatchGetItem
+        - dynamodb:BatchWriteItem
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:DescribeStream
+        - dynamodb:ListStreams
+        - dynamodb:GetShardIterator
+        - dynamodb:GetRecords
+      Resource:
+        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/*"
+
+
+resources:
+  Resources:
+
+    webhookData:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: webhookData
+        BillingMode: PAY_PER_REQUEST
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        AttributeDefinitions:
+          - AttributeName: email
+            AttributeType: S  # String
+          - AttributeName: timestamp
+            AttributeType: N
+          - AttributeName: order_number
+            AttributeType: N  # Number
+          - AttributeName: value
+            AttributeType: N
+          - AttributeName: offer_code
+            AttributeType: S
+        KeySchema:
+          - AttributeName: email
+            KeyType: HASH   # partition key
+          - AttributeName: timestamp
+            KeyType: RANGE   # sort key
+        GlobalSecondaryIndexes:
+        - IndexName: valueIndex
+          KeySchema:
+          - AttributeName: value
+            KeyType: HASH
+          - AttributeName: timestamp
+            KeyType: RANGE
+          Projection:
+            ProjectionType: "ALL"
+
+
+package:
+  exclude:
+    - .git/**
+    - .terraform/**
