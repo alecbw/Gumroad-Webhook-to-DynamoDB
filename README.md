@@ -52,7 +52,7 @@ You can test the Lambda by POSTing to it from Postman or curl. A sample body JSO
 ```
 
 
-All the resources fit easily in the AWS Free Tier and should have no ongoing costs (presuming you stay in the Free Tier, particularly on S3 storage).
+All the resources fit easily in the AWS Free Tier and should have no ongoing costs.
 
 To take down the CloudFormation Stack and associated Lambda/Dynamo Tabe, use:
 ```
