@@ -26,8 +26,6 @@ def lambda_handler(event, context):
     data_to_write = {
         "email": webhook_data.pop("email"),
         "timestamp": int(datetime.strptime(webhook_data.pop("sale_timestamp"), "%Y-%m-%d %H:%M:%S").timestamp()),
-        # "order_number": webhook_data.pop("order_number"),
-        # "product_id": webhook_data.pop("product_id"),
         "value": int(webhook_data.pop("price")),
         "offer_code": webhook_data.get("offer_code"),
         "country": webhook_data.pop("ip_country"),
@@ -44,6 +42,7 @@ def lambda_handler(event, context):
 
 
 ############################################################################################
+
 
 # Note: this will BY DEFAULT overwrite items with the same primary key (upsert)
 def write_dynamodb_item(dict_to_write, table, **kwargs):
