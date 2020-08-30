@@ -21,7 +21,7 @@ def lambda_handler(event, context):
         return package_response(f"Missing required params {missing_params}", 422)
     elif param_dict["Secret_Key"] != os.environ["SECRET_KEY"]:
         return package_response(f"Please authenticate", 403)
-
+    print(event["body"])
     webhook_data = json.loads(event["body"])[0]
     data_to_write = {
         "email": webhook_data.pop("email"),

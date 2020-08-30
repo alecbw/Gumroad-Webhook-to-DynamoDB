@@ -11,9 +11,6 @@ provider:
   tags:
     deployment: serverless.com
     project: GR-Webhook
-  environment:
-#    NODE_ENV: ${env:NODE_ENV}
-
   iamRoleStatements:
     - Effect: Allow
       Action:
@@ -38,6 +35,7 @@ functions:
     timeout: 10
     environment:
       SECRET_KEY: ${env:SECRET_KEY}
+      SENTRY_DSN: ${env:SENTRY_DSN}
     events:
       - http:
           path: /webhook
