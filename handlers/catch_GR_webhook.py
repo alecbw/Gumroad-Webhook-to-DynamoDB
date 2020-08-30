@@ -26,7 +26,7 @@ def lambda_handler(event, context):
 
     data_to_write = {
         "email": webhook_data.pop("email"),
-        "timestamp": datetime.strptime(webhook_data.pop("sale_timestamp"), "%Y-%m-%d %H:%M:%S"),
+        "timestamp": int(datetime.strptime(webhook_data.pop("sale_timestamp"), "%Y-%m-%d %H:%M:%S").timestamp()),
         # "order_number": webhook_data.pop("order_number"),
         # "product_id": webhook_data.pop("product_id"),
         "value": int(webhook_data.pop("price")),
