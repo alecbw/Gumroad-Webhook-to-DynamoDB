@@ -1,5 +1,4 @@
 from utility.util import *
-from utility.util_datastores import write_dynamodb_item
 
 import os
 from datetime import datetime
@@ -39,11 +38,24 @@ def lambda_handler(event, context):
         logging.error(webhook_data)
         raise KeyError("Missing a necessary key to perform a write")
 
-    write_dynamodb_item(data_to_write, "GRWebhookData")
+    success = write_dynamodb_item(data_to_write, "GRWebhookData")
 
-    return package_response("Success", 200)
+    return package_response(f"Success status was {success}", 200)
 
 
 ############################################################################################
-# 2020-06-09T18:11:22Z
-# "%Y-%m-%dT%H:%M:%SZ"
+
+# Note: this will BY DEFAULT overwrite items with the same primary key (upsert)
+def write_dynamodb_item(dict_to_write, table, **kwargs):
+    table = boto3.resource('dynamodb').Table(table)
+    dict_to_write = {"Item": dict_to_write}
+
+    try:
+        table.put_item(**dict_to_write)
+    except Exception as e:
+        logging.error(e)
+        logging.error(dict_to_write)
+        return False
+
+    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Write to {table}")
+    return True
