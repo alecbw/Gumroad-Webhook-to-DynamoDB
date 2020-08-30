@@ -3,8 +3,8 @@ from utility.util_datastores import write_dynamodb_item
 
 import os
 from datetime import datetime
+from urllib.parse import parse_qs
 import logging
-logger = logging.getLogger()
 
 import boto3
 
@@ -17,27 +17,33 @@ def lambda_handler(event, context):
         optional_params=[]
     )
 
-    if missing_params:
-        return package_response(f"Missing required params {missing_params}", 422)
-    elif param_dict["Secret_Key"] != os.environ["SECRET_KEY"]:
+    if param_dict.get("Secret_Key") != os.environ["SECRET_KEY"]:
         return package_response(f"Please authenticate", 403)
-    print(event["body"])
-    webhook_data = json.loads(event["body"])[0]
+
+    # parse_qs writes every value as a list, so we subsequently unpack those lists
+    webhook_data = parse_qs(event["body"])
+    webhook_data = {k:v if len(v)>1 else v[0] for k,v in webhook_data.items()}
+
     data_to_write = {
         "email": webhook_data.pop("email"),
-        "timestamp": webhook_data.pop("sale_timestamp"), # TODO convert
+        "timestamp": datetime.strptime(webhook_data.pop("sale_timestamp"), "%Y-%m-%d %H:%M:%S"),
         # "order_number": webhook_data.pop("order_number"),
         # "product_id": webhook_data.pop("product_id"),
-        "value": webhook_data.pop("price"),
+        "value": int(webhook_data.pop("price")),
         "offer_code": webhook_data.get("offer_code"),
         "country": webhook_data.pop("ip_country"),
-        "refunded": 1 if webhook_data.pop("refunded") in ["true", True] else 0,
+        "refunded": 1 if webhook_data.pop("refunded") in ["true", "True", True] else 0,
         "data": webhook_data,
     }
+    if not data_to_write["email"] or not data_to_write["timestamp"]:
+        logging.error(webhook_data)
+        raise KeyError("Missing a necessary key to perform a write")
 
-    write_dynamodb_item(data_to_write, "GRWebhookData", **kwargs)
+    write_dynamodb_item(data_to_write, "GRWebhookData")
 
-    return package_response("Sucess", 200)
+    return package_response("Success", 200)
 
 
 ############################################################################################
+# 2020-06-09T18:11:22Z
+# "%Y-%m-%dT%H:%M:%SZ"
