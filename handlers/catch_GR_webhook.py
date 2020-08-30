@@ -20,8 +20,10 @@ def lambda_handler(event, context):
         return package_response(f"Please authenticate", 403)
 
     # parse_qs writes every value as a list, so we subsequently unpack those lists
+    print(body)
     webhook_data = parse_qs(event["body"])
     webhook_data = {k:v if len(v)>1 else v[0] for k,v in webhook_data.items()}
+    print(webhook_data)
 
     data_to_write = {
         "email": webhook_data.pop("email"),
