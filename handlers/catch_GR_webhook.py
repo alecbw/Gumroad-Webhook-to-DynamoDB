@@ -24,14 +24,15 @@ def lambda_handler(event, context):
 
     webhook_data = json.loads(event["body"])[0]
     data_to_write = {
-        "email": webhook_data["email"],
-        "timestamp": webhook_data["sale_timestamp"], # TODO convert
-        "order_number": webhook_data["order_number"],
-        "product_id": webhook_data["product_id"],
-        "value": webhook_data["price"],
+        "email": webhook_data.pop("email"),
+        "timestamp": webhook_data.pop("sale_timestamp"), # TODO convert
+        # "order_number": webhook_data.pop("order_number"),
+        # "product_id": webhook_data.pop("product_id"),
+        "value": webhook_data.pop("price"),
         "offer_code": webhook_data.get("offer_code"),
-        "country": webhook_data["ip_country"],
-        "refunded": webhook_data["refunded"],
+        "country": webhook_data.pop("ip_country"),
+        "refunded": 1 if webhook_data.pop("refunded") in ["true", True] else 0,
+        "data": webhook_data,
     }
 
     write_dynamodb_item(data_to_write, "GRWebhookData", **kwargs)

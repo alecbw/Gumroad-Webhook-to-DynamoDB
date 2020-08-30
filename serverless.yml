@@ -30,8 +30,20 @@ provider:
         - dynamodb:GetShardIterator
         - dynamodb:GetRecords
       Resource:
-        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/*"
+        - "arn:aws:dynamodb:${opt:region, self:provider.region}:${env:AWS_ACCOUNT_ID}:table/*"
 
+functions:
+  catch-GR-webhook:
+    handler: handlers/catch_GR_webhook.lambda_handler
+    timeout: 10
+    environment:
+      SECRET_KEY: ${env:SECRET_KEY}
+    events:
+      - http:
+          path: /webhook
+          method: post
+    layers:
+      - arn:aws:lambda:us-west-1:${env:AWS_ACCOUNT_ID}:layer:Monitoring:1
 
 resources:
   Resources:
@@ -47,10 +59,6 @@ resources:
             AttributeType: S  # String
           - AttributeName: timestamp
             AttributeType: N
-          - AttributeName: order_number
-            AttributeType: N  # Number
-          - AttributeName: product_id
-            AttributeType: S
           - AttributeName: value
             AttributeType: N
           - AttributeName: offer_code
@@ -58,7 +66,7 @@ resources:
           - AttributeName: country
             AttributeType: S
           - AttributeName: refunded
-            AttributeType: BOOL
+            AttributeType: N
         KeySchema:
           - AttributeName: email
             KeyType: HASH   # partition key
@@ -72,8 +80,31 @@ resources:
           - AttributeName: timestamp
             KeyType: RANGE
           Projection:
+           ProjectionType: "ALL"
+        - IndexName: couponIndex
+          KeySchema:
+          - AttributeName: offer_code
+            KeyType: HASH
+          - AttributeName: timestamp
+            KeyType: RANGE
+          Projection:
+           ProjectionType: "ALL"
+        - IndexName: locationIndex
+          KeySchema:
+          - AttributeName: country
+            KeyType: HASH
+          - AttributeName: timestamp
+            KeyType: RANGE
+          Projection:
+           ProjectionType: "ALL"
+        - IndexName: refundIndex
+          KeySchema:
+          - AttributeName: refunded
+            KeyType: HASH
+          - AttributeName: timestamp
+            KeyType: RANGE
+          Projection:
             ProjectionType: "ALL"
-
 
 package:
   exclude:
