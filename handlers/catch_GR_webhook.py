@@ -1,7 +1,7 @@
 from utility.util import *
 
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import parse_qs
 import logging
 
@@ -15,28 +15,27 @@ def lambda_handler(event, context):
         required_params=["Secret_Key"],
         optional_params=[]
     )
-
-    if param_dict.get("Secret_Key") != os.environ["SECRET_KEY"]:
-        return package_response(f"Please authenticate", 403)
+    print(event)
+    if param_dict.get("Secret_Key") not in [os.environ["SECRET_KEY"], "export SECRET_KEY=" + os.environ["SECRET_KEY"]]:
+        return package_response(f"Please authenticate", 403, warn="please auth")
 
     # parse_qs writes every value as a list, so we subsequently unpack those lists
-    print(body)
     webhook_data = parse_qs(event["body"])
     webhook_data = {k:v if len(v)>1 else v[0] for k,v in webhook_data.items()}
-    print(webhook_data)
+
+    timestamp = datetime.strptime(webhook_data.pop("sale_timestamp").replace("T", " ").replace("Z", ""), "%Y-%m-%d %H:%M:%S")
+    timestamp = timestamp - timedelta(hours=7)
 
     data_to_write = {
         "email": webhook_data.pop("email"),
-        "timestamp": int(datetime.strptime(webhook_data.pop("sale_timestamp"), "%Y-%m-%d %H:%M:%S").timestamp()),
+        "timestamp": int(timestamp.timestamp()),
         "value": int(webhook_data.pop("price")),
-        "offer_code": webhook_data.get("offer_code"),
-        "country": webhook_data.pop("ip_country"),
+        "offer_code": webhook_data.pop("offer_code", "No Code"),
+        "country": webhook_data.pop("ip_country", "Unknown"),
         "refunded": 1 if webhook_data.pop("refunded") in ["true", "True", True] else 0,
         "data": webhook_data,
+        "_ga": webhook_data.get("url_params[_ga]", ""),
     }
-    if not data_to_write["email"] or not data_to_write["timestamp"]:
-        logging.error(webhook_data)
-        raise KeyError("Missing a necessary key to perform a write")
 
     success = write_dynamodb_item(data_to_write, "GRWebhookData")
 
