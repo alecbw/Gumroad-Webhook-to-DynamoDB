@@ -15,7 +15,7 @@ def lambda_handler(event, context):
         required_params=["Secret_Key"],
         optional_params=[]
     )
-    print(event)
+    logging.info(event)
     if param_dict.get("Secret_Key") not in [os.environ["SECRET_KEY"], "export SECRET_KEY=" + os.environ["SECRET_KEY"]]:
         return package_response(f"Please authenticate", 403, warn="please auth")
 
@@ -35,6 +35,7 @@ def lambda_handler(event, context):
         "refunded": 1 if webhook_data.pop("refunded") in ["true", "True", True] else 0,
         "data": webhook_data,
         "_ga": webhook_data.get("url_params[_ga]", ""),
+        'updatedAt': int(datetime.now().timestamp()),
     }
 
     success = write_dynamodb_item(data_to_write, "GRWebhookData")
