@@ -42,6 +42,8 @@ functions:
           method: post
     layers:
       - arn:aws:lambda:us-west-1:${env:AWS_ACCOUNT_ID}:layer:Monitoring:1
+      - arn:aws:lambda:us-west-1:${env:AWS_ACCOUNT_ID}:layer:Requests-BS4:12
+
 
 resources:
   Resources:
