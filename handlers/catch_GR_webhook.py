@@ -68,8 +68,8 @@ def track_google_analytics_event(data_to_write):
 
     # Note: this will always return 200
     resp = requests.post(tracking_url)
+    if os.getenv("DEBUG") == True: print(resp.text)
 
-# Note: this will BY DEFAULT overwrite items with the same primary key (upsert)
 def write_dynamodb_item(dict_to_write, table, **kwargs):
     table = boto3.resource('dynamodb').Table(table)
     dict_to_write = {"Item": dict_to_write}
