@@ -55,7 +55,7 @@ A note on queue time (&qt):
     This can mess with your reporting, by e.g. pushing events' reporting to the subsequent day
     The latency b/w receiving webhook and GA POST should be low (~200-300ms total), so the qt param is more of precautionary measure
 """
-def track_google_analytics_event(data_to_write):
+def track_google_analytics_event(data_to_write, **kwargs):
     tracking_url = "https://www.google-analytics.com/"
     if os.getenv("DEBUG") == True: tracking_url += "debug/"
     tracking_url += "collect?v=1&t=event"
@@ -75,6 +75,8 @@ def track_google_analytics_event(data_to_write):
     # Note: this will always return 200
     resp = requests.post(tracking_url)
     if os.getenv("DEBUG") == True: print(resp.text)
+    if not kwargs.get("disable_print"): logging.info(f"Successfully did POST'd the information to Google Analytics")
+
 
 def write_dynamodb_item(dict_to_write, table, **kwargs):
     table = boto3.resource('dynamodb').Table(table)
