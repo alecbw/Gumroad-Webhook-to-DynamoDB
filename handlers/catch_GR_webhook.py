@@ -39,33 +39,35 @@ def lambda_handler(event, context):
         'updatedAt': int(datetime.now().timestamp()),
     }
 
-    success = write_dynamodb_item(data_to_write, "GRWebhookData")
+    write_dynamodb_item(data_to_write, "GRWebhookData")
 
-    track_google_analytics_event(data_to_write)
+    track_google_analytics_event(test_dict)
 
-    return package_response(f"Success status was {success}", 200)
+    logging.info("Dynamo write and GA POST both appear to be successful")
+    # return package_response(f"Dynamo write and GA POST both appear to be successful", 200)
 
 
 ############################################################################################
 
 def track_google_analytics_event(data_to_write):
-    tracking_url = 'https://www.google-analytics.com/collect?v=1&t=event'
-    tracking_url += '&tid=' + 'UA-131042255-2'
+    tracking_url = "https://www.google-analytics.com/"
+    if os.getenv("DEBUG") == True: tracking_url += "debug/"
+    tracking_url += "collect?v=1&t=event"
+    tracking_url += "&tid=" + "UA-131042255-2"
     tracking_url += "&ec=" + "product-" + ez_get(data_to_write, "data", "permalink") # event category
     tracking_url += "&ea=" + "purchased" # event action
     tracking_url += "&el=" + "purchased a product" # event label
-    tracking_url += "&ev=" + str(ez_get(data_to_write, "value")/100) # value
-    tracking_url += "&cid=" + ez_get(data_to_write, "_ga") # Anon Client ID (actually GA Session ID sent Cross-Domain)
-    tracking_url += '&aip=1'
+    tracking_url += "&ev=" + str(ez_get(data_to_write, "value")) # value. stays as 100x higher bc no decimal for cents
+    tracking_url += "&uid=" + ez_get(data_to_write, "_ga") # Anon Client ID (actually GA Session ID sent Cross-Domain)
+    tracking_url += "&qt=" + str(int((datetime.now().timestamp() - data_to_write.get("timestamp")) * 1000)) # queue time - elapsed ms since event timestamp
+    tracking_url += "&aip=1" # anonymize IP since it's always the server's IP
+    tracking_url += "&ds=" + "python" # data source - identify that this is not the webserver itself
 
     # Not used in traditional event tracking
     # tracking_url += "&cu=" + ez_get(data, "data", "currency") # currency
 
-    print(tracking_url)
+    # Note: this will always return 200
     resp = requests.post(tracking_url)
-    print(resp)
-    return
-
 
 # Note: this will BY DEFAULT overwrite items with the same primary key (upsert)
 def write_dynamodb_item(dict_to_write, table, **kwargs):
@@ -80,17 +82,16 @@ def write_dynamodb_item(dict_to_write, table, **kwargs):
         return False
 
     if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Write to {table}")
-    return True
 
 
+# times = "2020-09-12T21:37:48Z"
+# timestamp = datetime.strptime(times.replace("T", " ").replace("Z", ""), "%Y-%m-%d %H:%M:%S")
+# timestamp = timestamp - timedelta(hours=7)
 
-
-
-    # event_category = "product-" + ez_get(data, "data", "permalink")
-    # event_action = "purchased"
-    # event_label = "
-    #
-    # tracking_id = 'UA-131042255-2'
-	# clientid_str = str(datetime.now())
-	# tid='+tracking_id+'&cid='+clientid_str+'&ec='+event_category+'&ea='+event_action+'&el='+event_label+'&aip=1'
-    	# tracking_url = 'https://www.google-analytics.com/collect?v=1&t=event&tid='+tracking_id+'&cid='+clientid_str+'&ec='+event_category+'&ea='+event_action+'&el='+event_label+'&aip=1'
+# test_dict = {
+#     "_ga": "2.197206063.1689275659.1599939181-845139552.1599939181",
+#     "country": "Unknown",
+#     "data": {"permalink": "WPLqz"},
+#     "value": 19900,
+#     "timestamp": timestamp,
+# }
