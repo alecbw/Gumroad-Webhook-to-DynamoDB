@@ -1,6 +1,7 @@
 from utility.util import *
 
 import os
+import random
 from datetime import datetime, timedelta
 from urllib.parse import parse_qs
 import logging
@@ -64,10 +65,21 @@ def track_google_analytics_event(data_to_write, **kwargs):
     tracking_url += "&ea=" + "purchased" # event action
     tracking_url += "&el=" + "purchased a product" # event label
     tracking_url += "&ev=" + str(ez_get(data_to_write, "value")) # value. stays as 100x higher bc no decimal for cents
-    tracking_url += "&uid=" + ez_get(data_to_write, "_ga") # Anon Client ID (actually GA Session ID sent Cross-Domain)
     tracking_url += "&qt=" + str(int((datetime.now().timestamp() - data_to_write.get("timestamp")) * 1000)) # queue time - elapsed ms since event timestamp
     tracking_url += "&aip=1" # anonymize IP since it's always the server's IP
     tracking_url += "&ds=" + "python" # data source - identify that this is not the webserver itself
+
+    if ez_get(data_to_write, "_ga"):
+
+        client_id = ez_split(ez_get(data_to_write, "_ga"), "-", 1) # extract the Client ID from the Cross-Domain Session ID
+        tracking_url += "&cid=" + client_id
+        logging.info(ez_get(data_to_write, "_ga"))
+        logging.info(client_id)
+    else: # generate a random ID
+        tracking_url += "&cid=" + str(int(random.random() * 10**8)) + str(data_to_write.get("timestamp"))
+
+    # just to check how the next couple run
+    logging.info(tracking_url)
 
     # Not used in traditional event tracking
     # tracking_url += "&cu=" + ez_get(data, "data", "currency") # currency
