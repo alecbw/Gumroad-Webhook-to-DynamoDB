@@ -45,7 +45,7 @@ def lambda_handler(event, context):
     track_google_analytics_event(data_to_write)
 
     logging.info("Dynamo write and GA POST both appear to be successful")
-    # return package_response(f"Dynamo write and GA POST both appear to be successful", 200)
+    return package_response(f"Dynamo write and GA POST both appear to be successful", 200)
 
 
 ############################################################################################
@@ -70,7 +70,6 @@ def track_google_analytics_event(data_to_write, **kwargs):
     tracking_url += "&ds=" + "python" # data source - identify that this is not the webserver itself
 
     if ez_get(data_to_write, "_ga"):
-
         client_id = ez_split(ez_get(data_to_write, "_ga"), "-", 1) # extract the Client ID from the Cross-Domain Session ID
         tracking_url += "&cid=" + client_id
         logging.info(ez_get(data_to_write, "_ga"))
