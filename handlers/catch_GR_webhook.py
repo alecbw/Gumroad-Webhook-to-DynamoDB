@@ -41,7 +41,7 @@ def lambda_handler(event, context):
 
     write_dynamodb_item(data_to_write, "GRWebhookData")
 
-    track_google_analytics_event(test_dict)
+    track_google_analytics_event(data_to_write)
 
     logging.info("Dynamo write and GA POST both appear to be successful")
     # return package_response(f"Dynamo write and GA POST both appear to be successful", 200)
@@ -49,6 +49,12 @@ def lambda_handler(event, context):
 
 ############################################################################################
 
+"""
+A note on queue time (&qt):
+    If you don't include a value, the event will be logged when you POST to GA, not when it actually happened
+    This can mess with your reporting, by e.g. pushing events' reporting to the subsequent day
+    The latency b/w receiving webhook and GA POST should be low (~200-300ms total), so the qt param is more of precautionary measure
+"""
 def track_google_analytics_event(data_to_write):
     tracking_url = "https://www.google-analytics.com/"
     if os.getenv("DEBUG") == True: tracking_url += "debug/"
