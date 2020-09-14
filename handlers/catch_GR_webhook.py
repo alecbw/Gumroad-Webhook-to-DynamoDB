@@ -54,7 +54,9 @@ def lambda_handler(event, context):
 A note on queue time (&qt):
     If you don't include a value, the event will be logged when you POST to GA, not when it actually happened
     This can mess with your reporting, by e.g. pushing events' reporting to the subsequent day
-    The latency b/w receiving webhook and GA POST should be low (~200-300ms total), so the qt param is more of precautionary measure
+    There are two latencies:
+         Event happened -> Webhook sent: avg 19000ms, range of 13-25s
+         Lambda triggered -> GA POST: ~200-300ms total
 """
 def track_google_analytics_event(data_to_write, **kwargs):
     tracking_url = "https://www.google-analytics.com/"
