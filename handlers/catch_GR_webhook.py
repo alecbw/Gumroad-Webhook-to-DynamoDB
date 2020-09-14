@@ -54,7 +54,7 @@ def lambda_handler(event, context):
 A note on queue time (&qt):
     If you don't include a value, the event will be logged when you POST to GA, not when it actually happened
     This can mess with your reporting, by e.g. pushing events' reporting to the subsequent day
-    There are two latencies:
+    There are two latencies (both are accounted for):
          Event happened -> Webhook sent: avg 19000ms, range of 13-25s
          Lambda triggered -> GA POST: ~200-300ms total
 """
@@ -67,7 +67,7 @@ def track_google_analytics_event(data_to_write, **kwargs):
     tracking_url += "&ea=" + "purchased" # event action
     tracking_url += "&el=" + "purchased a product" # event label
     tracking_url += "&ev=" + str(ez_get(data_to_write, "value")) # value. stays as 100x higher bc no decimal for cents
-    tracking_url += "&qt=" + str(int((datetime.now().timestamp() - data_to_write.get("timestamp")) * 1000)) # queue time - elapsed ms since event timestamp
+    tracking_url += "&qt=" + str(int((datetime.now().timestamp() - timedelta(hours=7)) - data_to_write.get("timestamp"))) # queue time - elapsed ms since event timestamp
     tracking_url += "&aip=1" # anonymize IP since it's always the server's IP
     tracking_url += "&ds=" + "python" # data source - identify that this is not the webserver itself
 
