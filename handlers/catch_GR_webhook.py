@@ -77,7 +77,7 @@ def track_google_analytics_event(data_to_write, **kwargs):
         logging.info(ez_get(data_to_write, "_ga"))
         logging.info(client_id)
     else: # generate a random ID
-        tracking_url += "&cid=" + str(int(random.random() * 10**8)) + str(data_to_write.get("timestamp"))
+        tracking_url += "&cid=" + str(int(random.random() * 10**8)) + "." + str(data_to_write.get("timestamp"))
 
     # just to check how the next couple run
     logging.info(tracking_url)
