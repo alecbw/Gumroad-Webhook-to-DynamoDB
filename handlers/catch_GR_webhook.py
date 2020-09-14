@@ -31,12 +31,12 @@ def lambda_handler(event, context):
     data_to_write = {
         "email": webhook_data.pop("email"),
         "timestamp": int(timestamp.timestamp()),
-        "value": int(webhook_data.pop("price")), # need to divide by 100 later fyi
+        "value": int(webhook_data.pop("price")), # you'll need to divide by 100 to get $$.¢¢, as the data as sent as xxxx
         "offer_code": webhook_data.pop("offer_code", "No Code"),
         "country": webhook_data.pop("ip_country", "Unknown"),
         "refunded": 1 if webhook_data.pop("refunded") in ["true", "True", True] else 0,
-        "data": webhook_data,
         "_ga": webhook_data.get("url_params[_ga]", ""),
+        "data": webhook_data, # store the rest in a blob
         'updatedAt': int(datetime.now().timestamp()),
     }
 
@@ -67,9 +67,9 @@ def track_google_analytics_event(data_to_write, **kwargs):
     tracking_url += "&ea=" + "purchased" # event action
     tracking_url += "&el=" + "purchased a product" # event label
     tracking_url += "&ev=" + str(ez_get(data_to_write, "value")) # value. stays as 100x higher bc no decimal for cents
-    tracking_url += "&qt=" + str(int((datetime.now().timestamp() - timedelta(hours=7)) - data_to_write.get("timestamp"))) # queue time - elapsed ms since event timestamp
+    tracking_url += "&qt=" + str(int((datetime.now() - timedelta(hours=7)).timestamp() - data_to_write.get("timestamp"))) # queue time - elapsed ms since event timestamp
     tracking_url += "&aip=1" # anonymize IP since it's always the server's IP
-    tracking_url += "&ds=" + "python" # data source - identify that this is not the webserver itself
+    tracking_url += "&ds=" + "python" # data source - identify that this is not client JS
 
     if ez_get(data_to_write, "_ga"):
         client_id = ez_split(ez_get(data_to_write, "_ga"), "-", 1) # extract the Client ID from the Cross-Domain Session ID
