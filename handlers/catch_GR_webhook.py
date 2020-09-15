@@ -67,7 +67,7 @@ def track_google_analytics_event(data_to_write, **kwargs):
     tracking_url += "&ea=" + "purchased" # event action
     tracking_url += "&el=" + "purchased a product" # event label
     tracking_url += "&ev=" + str(ez_get(data_to_write, "value")) # value. stays as 100x higher bc no decimal for cents
-    tracking_url += "&qt=" + str(int((datetime.now() - timedelta(hours=7)).timestamp() - data_to_write.get("timestamp"))) # queue time - elapsed ms since event timestamp
+    tracking_url += "&qt=" + str(int(((datetime.now() - timedelta(hours=7)).timestamp() - data_to_write.get("timestamp")) * 1000)) # queue time - elapsed ms since event timestamp
     tracking_url += "&aip=1" # anonymize IP since it's always the server's IP
     tracking_url += "&ds=" + "python" # data source - identify that this is not client JS
 
