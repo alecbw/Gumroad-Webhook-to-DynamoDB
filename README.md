@@ -38,7 +38,7 @@ You can test the Lambda by POSTing to it from Postman or curl. A sample body JSO
   "quantity": "1",
   "order_number": "A_STRINGIFIED_INTEGER",
   "sale_id": "A_LONG_STRING==",
-  "sale_timestamp": "2020-06-09T18:11:22Z",
+  "sale_timestamp": "2020-09-09T18:11:22Z",
   "subscription_id": "kjletlkjeqasdf==",
   "variants": {
     "Tier": "Base Subscription"
@@ -51,7 +51,8 @@ You can test the Lambda by POSTing to it from Postman or curl. A sample body JSO
   "refunded": "false",
   "resource_name": "sale",
   "disputed": "false",
-  "dispute_won": "false"
+  "dispute_won": "false",
+  "url_params[_ga]": "2.6349685.1583997846.1600074293-639960653.1599804853"
 }
 ```
 
