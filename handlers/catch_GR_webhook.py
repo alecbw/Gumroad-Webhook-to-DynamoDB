@@ -75,6 +75,7 @@ A note on queue time (&qt):
          Event happened -> Webhook sent: avg 19000ms, range of 13-25s
          Lambda triggered -> GA POST: ~200-300ms total
     Queue times > 4 hours silently fail the POST, so we modify the param if the true qt is above that
+One last note: the GA call will silently fail without a User Agent, even if the debug endpoint says it's valid
 """
 def track_google_analytics_event(data_to_write, **kwargs):
     tracking_url = "https://www.google-analytics.com/"
@@ -89,7 +90,8 @@ def track_google_analytics_event(data_to_write, **kwargs):
     tracking_url += "&aip=1" # anonymize IP since it's always the server's IP
     tracking_url += "&ds=" + "python" # data source - identify that this is not client JS
 
-    queue_time = (data_to_write.get("updatedAt") - data_to_write.get("timestamp")) * 1000 # queue time - elapsed ms since event timestamp
+    # Calculate Queue Time, the elapsed ms since event timestamp
+    queue_time = (data_to_write.get("updatedAt") - data_to_write.get("timestamp")) * 1000
     if queue_time > 14400000:
         logging.warning("Queue times above 4 hours will cause GA to silently reject the event. We are going to modify (!) the qt to be below that limit")
         queue_time = 14300000
@@ -109,7 +111,8 @@ def track_google_analytics_event(data_to_write, **kwargs):
 
 
     # Note: this will always return status_code 200
-    resp = requests.post(tracking_url)
+    resp = requests.post(tracking_url, headers={"User-Agent": "Python Lambda: github.com/alecbw/Gumroad-to-Google-Analytics-Webhook"})
+
     if os.getenv("DEBUG"): print(resp.text)
     if not kwargs.get("disable_print"): logging.info(f"Successfully did POST'd the information to Google Analytics")
 
@@ -121,13 +124,16 @@ def write_dynamodb_item(dict_to_write, table, **kwargs):
     try:
         table.put_item(**dict_to_write)
     except Exception as e:
-        logging.error(e)
+        logging.error(f"There's been a Dynamo write error: {e}")
         logging.error(dict_to_write)
         return False
 
     if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Write to {table}")
 
 
+
+
+""" May implement later """
 # Document location
 # "&dl=" + "https://gumroad.com/l/" + ez_get(data_to_write, "data", "permalink")
 
@@ -136,28 +142,3 @@ def write_dynamodb_item(dict_to_write, table, **kwargs):
 
 # Document Title
 # "dt=" + "purchased a product"
-
-
-# times = "2020-09-12T21:37:48Z"
-# timestamp = datetime.strptime(times.replace("T", " ").replace("Z", ""), "%Y-%m-%d %H:%M:%S")
-# timestamp = timestamp - timedelta(hours=7)
-
-# test_dict = {
-#     "_ga": "2.197206063.1689275659.1599939181-845139552.1599939181",
-#     "country": "Unknown",
-#     "data": {"permalink": "WPLqz"},
-#     "value": 19900,
-#     "timestamp": timestamp,
-# }
-
-# tz_adjustment = 7 if is_timezone_in_daylight_savings("America/Los_Angeles") else 8
-# timestamp = timestamp - timedelta(hours=tz_adjustment)
-# - timedelta(hours=tz_adjustment)
-
-# I hate that I have to write this
-# def is_timezone_in_daylight_savings(zonename):
-#     os.environ['TZ'] = zonename
-#     return time.localtime().tm_isdst > 0
-
-# Not used in traditional event tracking
-# tracking_url += "&cu=" + ez_get(data, "data", "currency") # currency
