@@ -21,7 +21,7 @@ def generate_clientid(webhook_data, sale_timestamp):
     # If not present, generate a random ID of the same length and shape
     else:
         logging.info("No _ga param found; generating a new Client ID")
-        return str(int(random.random() * 10**8)) + "." + str(int(sale_timestamp.timestamp()))
+        return f"{int(random.random() * 10**8)}.{int(sale_timestamp.timestamp())}"
 
 
 """
@@ -35,9 +35,9 @@ A note on queue time (&qt):
     Queue times > 4 hours silently fail the POST, so we modify the param if the true qt is above that
 """
 def calculate_queue_time(data_to_write):
-    queue_time = (data_to_write.get("updatedAt") - data_to_write.get("timestamp")) * 1000
+    queue_time = (data_to_write["updatedAt"] - data_to_write["timestamp"]) * 1000
     if queue_time > 14400000:
-        logging.warning("Queue times above 4 hours will cause GA to silently reject the event. We are going to modify (!) the qt to be below that limit")
+        logging.warning("We are going to modify (!) the qt to be below the 4 hour GA limit")
         queue_time = 14300000
     return str(queue_time)
 
@@ -50,6 +50,7 @@ If you don't provide geo, GA wrongly infers it from the Server's IP as US.
     Docs: https://developers.google.com/analytics/devguides/collection/protocol/v1/parameters
 """
 def convert_geo_code(country):
+    geo_dict = {"Afghanistan": "AF","Angola": "AO","Anguilla": "AI","United Arab Emirates": "AE","Argentina": "AR","Antigua and Barbuda": "AG","Australia": "AU","Austria": "AT","Azerbaijan": "AZ","Belgium": "BE","Benin": "BJ","Bangladesh": "BD","Bulgaria": "BG","Bahrain": "BH","Belarus": "BY","Brazil": "BR","Barbados": "BB","Brunei": "BN","Canada": "CA","United Kingdom": "GB","Switzerland": "CH","Chile": "CL","China": "CN","Democratic Republic of the Congo": "CD","Colombia": "CO","Comoros": "KM","Costa Rica": "CR","Cayman Islands": "KY","Cyprus": "CY","Czechia": "CZ","Germany": "DE","Djibouti": "DJ","Dominica": "DM","Denmark": "DK","Dominican Republic": "DO","Algeria": "DZ","Ecuador": "EC","Egypt": "EG","Eritrea": "ER","Spain": "ES","Estonia": "EE","Ethiopia": "ET","Finland": "FI","Fiji": "FJ","France": "FR","Faroe Islands": "FO","Federated States of Micronesia": "FM","Gabon": "GA","Guernsey": "GG","Jersey": "JE","Georgia": "GE","Guadeloupe": "GP","Greece": "GR","Western Greece and the Ionian": "GR","Greenland": "GL","Guatemala": "GT","French Guiana": "GF","Guam": "GU","Guyana": "GY","Croatia": "HR","Haiti": "HT","Hungary": "HU","Indonesia": "ID","India": "IN","Ireland": "IE","Iraq": "IQ","Iceland": "IS","Israel": "IL","Italy": "IT","Apulia": "IT","Jamaica": "JM","Japan": "JP","Kazakhstan": "KZ","Kenya": "KE","Kyrgyzstan": "KG","Cambodia": "KH","Saint Kitts and Nevis": "KN","South Korea": "KR","Laos": "LA","Lebanon": "LB","Libya": "LY","Liechtenstein": "LI","Sri Lanka": "LK","Lithuania": "LT","Luxembourg": "LU","Latvia": "LV","Macao": "MO","Morocco": "MA","Moldova": "MD","Madagascar": "MG","Mexico": "MX","North Macedonia": "MK","Malta": "MT","Myanmar (Burma)": "MM","Mongolia": "MN","Northern Mariana Islands": "MP","Mozambique": "MZ","Martinique": "MQ","Mauritius": "MU","Malawi": "MW","Malaysia": "MY","Namibia": "NA","New Caledonia": "NC","Niger": "NE","Nigeria": "NG","Nicaragua": "NI","Netherlands": "NL","Norway": "NO","Nepal": "NP","New Zealand": "NZ","Pakistan": "PK","Panama": "PA","Peru": "PE","Philippines": "PH","Palau": "PW","Papua New Guinea": "PG","Poland": "PL","Puerto Rico": "PR","Portugal": "PT","Paraguay": "PY","French Polynesia": "PF","Qatar": "QA","Reunion": "RE","Romania": "RO","Russia": "RU","Rwanda": "RW","Saudi Arabia": "SA","Solomon Islands": "SB","El Salvador": "SV","Somalia": "SO","Sao Tome and Principe": "ST","Suriname": "SR","Slovakia": "SK","Slovenia": "SI","Sweden": "SE","Eswatini": "SZ","Chad": "TD","Togo": "TG","Thailand": "TH","Tajikistan": "TJ","Turkmenistan": "TM","Tonga": "TO","Tunisia": "TN","Turkey": "TR","Taiwan": "TW","Tanzania": "TZ","Uganda": "UG","Ukraine": "UA","Uruguay": "UY","United States": "US","Uzbekistan": "UZ","Saint Vincent and the Grenadines": "VC","Venezuela": "VE","British Virgin Islands": "VG","U.S. Virgin Islands": "VI","Vietnam": "VN","Vanuatu": "VU","Samoa": "WS","Yemen": "YE","Montenegro": "ME","Kosovo": "XK","Serbia": "RS","South Africa": "ZA","Zambia": "ZM","Zimbabwe": "ZW","Bosnia and Herzegovina": "BA","Bolivia": "BO","American Samoa": "AS","Hong Kong": "HK","Singapore": "SG","Armenia": "AM","Kuwait": "KW","Selangor": "MY","Burkina Faso": "BF","Cape Verde": "CV","Grenada": "GD","Ghana": "GH","Gibraltar": "GI","The Gambia": "GM","Guinea": "GN","Liberia": "LR","Lesotho": "LS","Mauritania": "MR","Sierra Leone": "SL","Senegal": "SN","Oman": "OM","Jordan": "JO","Honduras": "HN","Albania": "AL","Cameroon": "CM","Botswana": "BW","Bermuda": "BM","Belize": "BZ","Mali": "ML","Western Sahara": "EH","Cote d'Ivoire": "CI","Andorra": "AD","Burundi": "BI","The Bahamas": "BS","Bhutan": "BT","Central African Republic": "CF","Republic of the Congo": "CG","Equatorial Guinea": "GQ","Guinea-Bissau": "GW","Maldives": "MV"}
     return geo_dict.get(country, 99999999)
 
 
@@ -57,9 +58,10 @@ def convert_geo_code(country):
 POSTs the event data to Google Analytics. There will be no request and it will always return 200 (unless in DEBUG)
 A note: the GA call will silently fail without a User Agent, even if the debug endpoint says it's valid
 """
-def track_google_analytics_event(data_to_write, **kwargs):
+def track_google_analytics_event(data_to_write):
     tracking_url = "https://www.google-analytics.com/"
-    if os.getenv("DEBUG"): tracking_url += "debug/"
+    if os.getenv("DEBUG"):
+        tracking_url += "debug/"
     tracking_url += "collect?v=1&t=event"
     tracking_url += "&tid=" + "UA-131042255-2"  # web property ID
     tracking_url += "&ec=" + "product-" + ez_get(data_to_write, "data", "permalink")  # event category
@@ -67,25 +69,33 @@ def track_google_analytics_event(data_to_write, **kwargs):
     tracking_url += "&el=" + "purchased a product"  # event label
     tracking_url += "&geoid=" + convert_geo_code(data_to_write.get("country"))  # geocode
     tracking_url += "&ev=" + str(ez_get(data_to_write, "value"))  # value. stays as 100x higher bc no decimal for cents
-    tracking_url += "&aip=1"  # anonymize IP since it's always the server's IP
+    tracking_url += "&aip=" + "1"  # anonymize IP since it's always the server's IP
     tracking_url += "&ds=" + "python"  # data source - identify that this is not client JS
     tracking_url += "&cid=" + data_to_write["cid"]  # client ID
     tracking_url += "&qt=" + calculate_queue_time(data_to_write)
 
-    if os.getenv("DEBUG"): logging.info(tracking_url)
+    if os.getenv("DEBUG"):
+        logging.info(tracking_url)
 
-    resp = requests.post(tracking_url, headers={"User-Agent": "Python Lambda: github.com/alecbw/Gumroad-to-Google-Analytics-Webhook"})
+    resp = requests.post(
+        tracking_url,
+        headers={
+            "User-Agent": "Python Lambda: github.com/alecbw/Gumroad-to-Google-Analytics-Webhook"
+        },
+    )
 
-    if os.getenv("DEBUG"): print(resp.text)
-    if not kwargs.get("disable_print"): logging.info("Successfully POST'd the information to Google Analytics")
+    if os.getenv("DEBUG"):
+        print(resp.text)
+
+    logging.info("Successfully POST'd the information to Google Analytics")
 
 
 ########################### ~ Dynamo Write ~ ###################################################
 
 
 # We do this before the GA POST just to be safe and have our own copy of the data
-def write_dynamodb_item(dict_to_write, table, **kwargs):
-    table = boto3.resource('dynamodb').Table(table)
+def write_dynamodb_item(dict_to_write, table):
+    table = boto3.resource("dynamodb").Table(table)
     dict_to_write = {"Item": dict_to_write}
 
     try:
@@ -95,7 +105,7 @@ def write_dynamodb_item(dict_to_write, table, **kwargs):
         logging.error(dict_to_write)
         return False
 
-    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Write to {table}")
+    logging.info(f"Successfully did a Dynamo Write to {table}")
 
 
 ################################# ~ Main ~ ###################################################
@@ -103,35 +113,40 @@ def write_dynamodb_item(dict_to_write, table, **kwargs):
 
 """
 Both timestamps - the sale_timestamp 'timestamp' and the write timestamp 'updatedAt' are UTC timezone-agnostics
+'value' ('price' in the GR webhook) is an int multiplied by 100 (e.g. $23.99 represented as 2399)
+The conversion back to dollars and cents is not handled here, so make sure you account for that
 """
+
+
 def lambda_handler(event, context):
     param_dict, missing_params = validate_params(event,
-        required_params=["Secret_Key"],
-        optional_params=[]
+         required_params=["Secret_Key"],
+         optional_params=[]
     )
-    logging.info(event)
-    if param_dict.get("Secret_Key") not in [os.environ["SECRET_KEY"], "export SECRET_KEY=" + os.environ["SECRET_KEY"]]:
+    logging.info(event) # will take this out once I've seen enough data
+    if param_dict.get("Secret_Key", "").replace("export SECRET_KEY=", "") != os.environ["SECRET_KEY"]:
         return package_response("Please authenticate", 403, warn="please auth")
 
-    if os.getenv("DEBUG"): logging.info("\nYou are now in debug mode. The Dynamo row will write, but the GA POST will be to the debug endpoint")
+    if os.getenv("DEBUG"):
+        logging.info("\nYou are now in debug. Dynamo won't write, and the GA POST will be to the debug endpoint")
 
     # parse_qs writes every value as a list, so we subsequently unpack those lists
     webhook_data = parse_qs(event["body"])
-    webhook_data = {k: v if len(v)>1 else v[0] for k, v in webhook_data.items()}
+    webhook_data = {k: v if len(v) > 1 else v[0] for k, v in webhook_data.items()}
 
-    sale_timestamp = datetime.strptime(webhook_data.pop("sale_timestamp").replace("T", " ").replace("Z", ""), "%Y-%m-%d %H:%M:%S")
+    sale_timestamp = datetime.strptime(webhook_data.pop("sale_timestamp").replace("Z", ""), "%Y-%m-%dT%H:%M:%S")
 
     data_to_write = {
         "email": webhook_data.pop("email"),
         "timestamp": int(sale_timestamp.timestamp()),  # UTC Non-Adjusted
-        "value": int(webhook_data.pop("price")),  # you'll need to divide by 100 to get $$.¢¢, as the data as sent as xxxx
+        "value": int(webhook_data.pop("price")),
         "offer_code": webhook_data.pop("offer_code", "No Code"),
         "country": webhook_data.pop("ip_country", "Unknown"),
         "refunded": 1 if webhook_data.pop("refunded") in ["true", "True", True] else 0,
         "_ga": webhook_data.get("url_params[_ga]", ""),
         "cid": generate_clientid(webhook_data, sale_timestamp),
-        "data": webhook_data,  # store the rest in a blob
-        'updatedAt': int(datetime.utcnow().timestamp()),  # UTC Non-Adjusted
+        "data": webhook_data,  # Store the rest in a blob
+        "updatedAt": int(datetime.utcnow().timestamp()),  # UTC Non-Adjusted
     }
 
     if not os.getenv("DEBUG"):
@@ -140,7 +155,7 @@ def lambda_handler(event, context):
     track_google_analytics_event(data_to_write)
 
     logging.info("Dynamo write and GA POST both appear to be successful")
-    return package_response("Dynamo write and GA POST both appear to be successful", 200)
+    return package_response("Success", 200)
 
 
 ###################################################################################################
