@@ -128,6 +128,15 @@ def write_dynamodb_item(dict_to_write, table, **kwargs):
     if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Write to {table}")
 
 
+# Document location
+# "&dl=" + "https://gumroad.com/l/" + ez_get(data_to_write, "data", "permalink")
+
+# Document Path
+# "&dp=" + "/" + ez_get(data_to_write, "data", "permalink")
+
+# Document Title
+# "dt=" + "purchased a product"
+
 
 # times = "2020-09-12T21:37:48Z"
 # timestamp = datetime.strptime(times.replace("T", " ").replace("Z", ""), "%Y-%m-%d %H:%M:%S")
