@@ -8,6 +8,10 @@ Set environment variables
 export SECRET_KEY="foobar"
 export SENTRY_DSN="foo@bar.co"
 ```
+If you want to test locally, ensure you export the DEBUG env var:
+```
+export DEBUG=True
+```
 
 
 # Using this
@@ -34,7 +38,7 @@ You can test the Lambda by POSTing to it from Postman or curl. A sample body JSO
   "quantity": "1",
   "order_number": "A_STRINGIFIED_INTEGER",
   "sale_id": "A_LONG_STRING==",
-  "sale_timestamp": "2020-06-09T18:11:22Z",
+  "sale_timestamp": "2020-09-09T18:11:22Z",
   "subscription_id": "kjletlkjeqasdf==",
   "variants": {
     "Tier": "Base Subscription"
@@ -47,9 +51,16 @@ You can test the Lambda by POSTing to it from Postman or curl. A sample body JSO
   "refunded": "false",
   "resource_name": "sale",
   "disputed": "false",
-  "dispute_won": "false"
+  "dispute_won": "false",
+  "url_params[_ga]": "2.6349685.1583997846.1600074293-639960653.1599804853"
 }
 ```
+
+You can also test it from the Terminal with `sls invoke local`:
+```bash
+sls invoke local -f catch-GR-webhook -d '{"Secret_Key":"WRITE-THE-SECRET-KEY-HERE","body": "seller_id=A_LONG_STRING%3D%3D&product_id=A_LONG_STRING%3D%3D&product_name=The%20DynamoDB%20Book%20-%20Plus%20Package&permalink=EZyTW&product_permalink=https%3A%2F%2Fgum.co%2FEZyTW&email=test%40testing.com&price=150&currency=usd&quantity=1&order_number=252699543&sale_id=GDxsfC0xDX9MI9i2i6d78A%3D%3D&is_gift_receiver_purchase=false&refunded=false&resource_name=sale&disputed=false&dispute_won=false&ip_country=Nigeria&url_params%5B_ga%5D=2.6349685.1583997846.1600074293-639960653.1599804853&sale_timestamp=2020-09-14T22%3A26%3A12Z"}'
+```
+The PII is all fake; you'll want to updated the sale_timestamp to be w/in 4 hours for the GA API call to not fail.
 
 
 All the resources fit easily in the AWS Free Tier and should have no ongoing costs.
