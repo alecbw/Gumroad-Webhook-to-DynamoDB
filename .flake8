@@ -1,0 +1,4 @@
+[flake8]
+max-line-length = 120
+ignore = E266, E501, E203, W503, E999, W605, F401
+exclude = *.yml, requirements.txt, *.json
