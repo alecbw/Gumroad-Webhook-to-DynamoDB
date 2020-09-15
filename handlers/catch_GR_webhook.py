@@ -12,13 +12,20 @@ import requests
 
 ################################ ~ GA POST and helpers ########################################
 
+"""
+ClientID's identify non-logged-in users' devices.
+    >= 1 ClientIDs map to the eventual UserID, if the user authenticates 
+        (You have to set this up in GA Admin -> Property -> Tracking Info -> User-ID)
 
-# Non-logged-in users have one ClientID per device (e.g. phone, desktop)
+Here, we:
+1. Extract the ClientID from the Cross-Domain Linker Session ID (_ga), if present
+2. If not present, generate a random ID of the same length and shape
+!. This code does not handle User IDs in any way.
+"""
+
 def generate_clientid(webhook_data, sale_timestamp):
-    # Extract the Client ID from the Cross-Domain Session ID, if present
     if webhook_data.get("url_params[_ga]"):
         return ez_split(webhook_data.get("url_params[_ga]"), "-", 1)
-    # If not present, generate a random ID of the same length and shape
     else:
         logging.info("No _ga param found; generating a new Client ID")
         return f"{int(random.random() * 10**8)}.{int(sale_timestamp.timestamp())}"
@@ -112,7 +119,7 @@ def write_dynamodb_item(dict_to_write, table):
 
 
 """
-Both timestamps - the sale_timestamp 'timestamp' and the write timestamp 'updatedAt' are UTC timezone-agnostics
+Both timestamps - the sale_timestamp 'timestamp' and the write timestamp 'updatedAt' are UTC timezone-agnostic
 'value' ('price' in the GR webhook) is an int multiplied by 100 (e.g. $23.99 represented as 2399)
 The conversion back to dollars and cents is not handled here, so make sure you account for that
 """
