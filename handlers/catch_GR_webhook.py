@@ -1,4 +1,4 @@
-from utility.util import *
+from utility.util import ez_split, ez_get, validate_params, package_response
 
 import os
 import random
@@ -10,50 +10,38 @@ import time
 import boto3
 import requests
 
-############################################################################################
+
+################################ ~ GA POST and helpers ########################################
+
+
+# Non-logged-in users have one ClientID per device (e.g. phone, desktop)
+def generate_clientid(webhook_data, sale_timestamp):
+    # Extract the Client ID from the Cross-Domain Session ID, if present
+    if webhook_data.get("url_params[_ga]"):
+        return ez_split(webhook_data.get("url_params[_ga]"), "-", 1)
+    # If not present, generate a random ID of the same length and shape
+    else:
+        logging.info("No _ga param found; generating a new Client ID")
+        return str(int(random.random() * 10**8)) + "." + str(int(sale_timestamp.timestamp()))
+
 
 """
-Both timestamps - the sale timestamp 'timestamp' and the write timestamp 'updatedAt' are UTC timezone-agnostics
+# Calculates Queue Time, the elapsed ms since event timestamp
+A note on queue time (&qt):
+    If you don't include a value, the event will be logged when you POST to GA, not when it actually happened
+    This can mess with your reporting, by e.g. pushing events' reporting to the subsequent day
+    There are two latencies (both are accounted for):
+         1. Event happened -> Webhook sent: avg 19000ms, range of 13-25s
+         2. Lambda triggered -> GA POST: ~200-300ms total
+    Queue times > 4 hours silently fail the POST, so we modify the param if the true qt is above that
 """
-def lambda_handler(event, context):
-    param_dict, missing_params = validate_params(event,
-        required_params=["Secret_Key"],
-        optional_params=[]
-    )
-    logging.info(event)
-    if param_dict.get("Secret_Key") not in [os.environ["SECRET_KEY"], "export SECRET_KEY=" + os.environ["SECRET_KEY"]]:
-        return package_response(f"Please authenticate", 403, warn="please auth")
+def calculate_queue_time(data_to_write):
+    queue_time = (data_to_write.get("updatedAt") - data_to_write.get("timestamp")) * 1000
+    if queue_time > 14400000:
+        logging.warning("Queue times above 4 hours will cause GA to silently reject the event. We are going to modify (!) the qt to be below that limit")
+        queue_time = 14300000
+    return str(queue_time)
 
-    if os.getenv("DEBUG"): logging.info("You are now in debug mode. The Dynamo row will write, but the GA POST will be to the debug endpoint")
-
-
-    # parse_qs writes every value as a list, so we subsequently unpack those lists
-    webhook_data = parse_qs(event["body"])
-    webhook_data = {k:v if len(v)>1 else v[0] for k,v in webhook_data.items()}
-
-    timestamp = datetime.strptime(webhook_data.pop("sale_timestamp").replace("T", " ").replace("Z", ""), "%Y-%m-%d %H:%M:%S")
-
-    data_to_write = {
-        "email": webhook_data.pop("email"),
-        "timestamp": int(timestamp.timestamp()), # UTC Non-Adjusted
-        "value": int(webhook_data.pop("price")), # you'll need to divide by 100 to get $$.¢¢, as the data as sent as xxxx
-        "offer_code": webhook_data.pop("offer_code", "No Code"),
-        "country": webhook_data.pop("ip_country", "Unknown"),
-        "refunded": 1 if webhook_data.pop("refunded") in ["true", "True", True] else 0,
-        "_ga": webhook_data.get("url_params[_ga]", ""),
-        "data": webhook_data, # store the rest in a blob
-        'updatedAt': int(datetime.utcnow().timestamp()), # UTC Non-Adjusted
-    }
-
-    write_dynamodb_item(data_to_write, "GRWebhookData")
-
-    track_google_analytics_event(data_to_write)
-
-    logging.info("Dynamo write and GA POST both appear to be successful")
-    return package_response(f"Dynamo write and GA POST both appear to be successful", 200)
-
-
-############################################################################################
 
 """ 
 If you don't provide geo, GA wrongly infers it from the Server's IP as US.
@@ -68,55 +56,37 @@ def convert_geo_code(country):
 
 
 """
-A note on queue time (&qt):
-    If you don't include a value, the event will be logged when you POST to GA, not when it actually happened
-    This can mess with your reporting, by e.g. pushing events' reporting to the subsequent day
-    There are two latencies (both are accounted for):
-         Event happened -> Webhook sent: avg 19000ms, range of 13-25s
-         Lambda triggered -> GA POST: ~200-300ms total
-    Queue times > 4 hours silently fail the POST, so we modify the param if the true qt is above that
-One last note: the GA call will silently fail without a User Agent, even if the debug endpoint says it's valid
+POSTs the event data to Google Analytics. There will be no request and it will always return 200 (unless in DEBUG)
+A note: the GA call will silently fail without a User Agent, even if the debug endpoint says it's valid
 """
 def track_google_analytics_event(data_to_write, **kwargs):
     tracking_url = "https://www.google-analytics.com/"
     if os.getenv("DEBUG"): tracking_url += "debug/"
     tracking_url += "collect?v=1&t=event"
-    tracking_url += "&tid=" + "UA-131042255-2"
-    tracking_url += "&ec=" + "product-" + ez_get(data_to_write, "data", "permalink") # event category
-    tracking_url += "&ea=" + "purchased" # event action
-    tracking_url += "&el=" + "purchased a product" # event label
-    tracking_url += "&geoid=" + convert_geo_code(data_to_write.get("country"))
-    tracking_url += "&ev=" + str(ez_get(data_to_write, "value")) # value. stays as 100x higher bc no decimal for cents
-    tracking_url += "&aip=1" # anonymize IP since it's always the server's IP
-    tracking_url += "&ds=" + "python" # data source - identify that this is not client JS
+    tracking_url += "&tid=" + "UA-131042255-2"  # web property ID
+    tracking_url += "&ec=" + "product-" + ez_get(data_to_write, "data", "permalink")  # event category
+    tracking_url += "&ea=" + "purchased"  # event action
+    tracking_url += "&el=" + "purchased a product"  # event label
+    tracking_url += "&geoid=" + convert_geo_code(data_to_write.get("country"))  # geocode
+    tracking_url += "&ev=" + str(ez_get(data_to_write, "value"))  # value. stays as 100x higher bc no decimal for cents
+    tracking_url += "&aip=1"  # anonymize IP since it's always the server's IP
+    tracking_url += "&ds=" + "python"  # data source - identify that this is not client JS
+    tracking_url += "&cid=" + data_to_write["cid"] # client ID
+    tracking_url += "&qt=" + calculate_queue_time(data_to_write)
 
-    # Calculate Queue Time, the elapsed ms since event timestamp
-    queue_time = (data_to_write.get("updatedAt") - data_to_write.get("timestamp")) * 1000
-    if queue_time > 14400000:
-        logging.warning("Queue times above 4 hours will cause GA to silently reject the event. We are going to modify (!) the qt to be below that limit")
-        queue_time = 14300000
-
-    tracking_url += "&qt=" + str(queue_time)
-
-    # Extract the Client ID from the Cross-Domain Session ID, if present
-    if data_to_write.get("_ga"):
-        client_id = ez_split(data_to_write.get("_ga"), "-", 1)
-        tracking_url += "&cid=" + client_id
-    # If not present, generate a random ID of the same length and shape
-    else:
-        tracking_url += "&cid=" + str(int(random.random() * 10**8)) + "." + str(data_to_write.get("timestamp"))
-
-    # just to check how the next couple run
-    logging.info(tracking_url)
-
+    if os.getenv("DEBUG"): logging.info(tracking_url)
 
     # Note: this will always return status_code 200
     resp = requests.post(tracking_url, headers={"User-Agent": "Python Lambda: github.com/alecbw/Gumroad-to-Google-Analytics-Webhook"})
 
     if os.getenv("DEBUG"): print(resp.text)
-    if not kwargs.get("disable_print"): logging.info(f"Successfully did POST'd the information to Google Analytics")
+    if not kwargs.get("disable_print"): logging.info(f"Successfully POST'd the information to Google Analytics")
 
 
+########################### ~ Dynamo Write ~ ###################################################
+
+
+# We do this before the GA POST just to be safe and have our own copy of the data
 def write_dynamodb_item(dict_to_write, table, **kwargs):
     table = boto3.resource('dynamodb').Table(table)
     dict_to_write = {"Item": dict_to_write}
@@ -131,9 +101,57 @@ def write_dynamodb_item(dict_to_write, table, **kwargs):
     if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Write to {table}")
 
 
+################################# ~ Main ~ ###################################################
 
 
-""" May implement later """
+"""
+Both timestamps - the sale_timestamp 'timestamp' and the write timestamp 'updatedAt' are UTC timezone-agnostics
+"""
+def lambda_handler(event, context):
+    param_dict, missing_params = validate_params(event,
+        required_params=["Secret_Key"],
+        optional_params=[]
+    )
+    logging.info(event)
+    if param_dict.get("Secret_Key") not in [os.environ["SECRET_KEY"], "export SECRET_KEY=" + os.environ["SECRET_KEY"]]:
+        return package_response(f"Please authenticate", 403, warn="please auth")
+
+    if os.getenv("DEBUG"): logging.info("\nYou are now in debug mode. The Dynamo row will write, but the GA POST will be to the debug endpoint")
+
+
+    # parse_qs writes every value as a list, so we subsequently unpack those lists
+    webhook_data = parse_qs(event["body"])
+    webhook_data = {k:v if len(v)>1 else v[0] for k,v in webhook_data.items()}
+
+    sale_timestamp = datetime.strptime(webhook_data.pop("sale_timestamp").replace("T", " ").replace("Z", ""), "%Y-%m-%d %H:%M:%S")
+
+    data_to_write = {
+        "email": webhook_data.pop("email"),
+        "timestamp": int(sale_timestamp.timestamp()), # UTC Non-Adjusted
+        "value": int(webhook_data.pop("price")), # you'll need to divide by 100 to get $$.¢¢, as the data as sent as xxxx
+        "offer_code": webhook_data.pop("offer_code", "No Code"),
+        "country": webhook_data.pop("ip_country", "Unknown"),
+        "refunded": 1 if webhook_data.pop("refunded") in ["true", "True", True] else 0,
+        "_ga": webhook_data.get("url_params[_ga]", ""),
+        "cid": generate_clientid(webhook_data, sale_timestamp),
+        "data": webhook_data, # store the rest in a blob
+        'updatedAt': int(datetime.utcnow().timestamp()), # UTC Non-Adjusted
+    }
+
+    if not os.getenv("DEBUG"):
+        write_dynamodb_item(data_to_write, "GRWebhookData")
+
+    track_google_analytics_event(data_to_write)
+
+    logging.info("Dynamo write and GA POST both appear to be successful")
+    return package_response(f"Dynamo write and GA POST both appear to be successful", 200)
+
+
+
+###################################################################################################
+
+""" 
+May implement later
 # Document location
 # "&dl=" + "https://gumroad.com/l/" + ez_get(data_to_write, "data", "permalink")
 
@@ -142,3 +160,4 @@ def write_dynamodb_item(dict_to_write, table, **kwargs):
 
 # Document Title
 # "dt=" + "purchased a product"
+"""
