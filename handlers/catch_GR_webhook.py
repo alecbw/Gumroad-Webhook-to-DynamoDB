@@ -24,25 +24,23 @@ def lambda_handler(event, context):
 
     if os.getenv("DEBUG"): logging.info("You are now in debug mode. The Dynamo row will write, but the GA POST will be to the debug endpoint")
 
-    tz_adjustment = 7 if is_timezone_in_daylight_savings("America/Los_Angeles") else 8
 
     # parse_qs writes every value as a list, so we subsequently unpack those lists
     webhook_data = parse_qs(event["body"])
     webhook_data = {k:v if len(v)>1 else v[0] for k,v in webhook_data.items()}
 
     timestamp = datetime.strptime(webhook_data.pop("sale_timestamp").replace("T", " ").replace("Z", ""), "%Y-%m-%d %H:%M:%S")
-    timestamp = timestamp - timedelta(hours=tz_adjustment)
 
     data_to_write = {
         "email": webhook_data.pop("email"),
-        "timestamp": int(timestamp.timestamp()), # TZ adjusted
+        "timestamp": int(timestamp.timestamp()), # UTC Non-Adjusted
         "value": int(webhook_data.pop("price")), # you'll need to divide by 100 to get $$.¢¢, as the data as sent as xxxx
         "offer_code": webhook_data.pop("offer_code", "No Code"),
         "country": webhook_data.pop("ip_country", "Unknown"),
         "refunded": 1 if webhook_data.pop("refunded") in ["true", "True", True] else 0,
         "_ga": webhook_data.get("url_params[_ga]", ""),
         "data": webhook_data, # store the rest in a blob
-        'updatedAt': int((datetime.utcnow() - timedelta(hours=tz_adjustment)).timestamp()), # TZ adjusted
+        'updatedAt': int(datetime.utcnow().timestamp()), # UTC Non-Adjusted
     }
 
     write_dynamodb_item(data_to_write, "GRWebhookData")
@@ -54,11 +52,6 @@ def lambda_handler(event, context):
 
 
 ############################################################################################
-
-# I hate that I have to write this
-def is_timezone_in_daylight_savings(zonename):
-    os.environ['TZ'] = zonename
-    return time.localtime().tm_isdst > 0
 
 """ 
 If you don't provide geo, GA wrongly infers it from the Server's IP as US.
@@ -93,14 +86,12 @@ def track_google_analytics_event(data_to_write, **kwargs):
     tracking_url += "&aip=1" # anonymize IP since it's always the server's IP
     tracking_url += "&ds=" + "python" # data source - identify that this is not client JS
 
-    queue_time = (data_to_write.get("updatedAt") - data_to_write.get("timestamp") * 1000) # queue time - elapsed ms since event timestamp
-    print(queue_time)
+    queue_time = (data_to_write.get("updatedAt") - data_to_write.get("timestamp")) * 1000 # queue time - elapsed ms since event timestamp
     if queue_time > 14400000:
-        logging.warning("Queue times above 4 hours will cause GA to silently reject the event. We are going to modify the qt to be below that limit")
+        logging.warning("Queue times above 4 hours will cause GA to silently reject the event. We are going to modify (!) the qt to be below that limit")
         queue_time = 14300000
 
     tracking_url += "&qt=" + str(queue_time)
-
 
     if data_to_write.get("_ga"):
         client_id = ez_split(data_to_write.get("_ga"), "-", 1) # extract the Client ID from the Cross-Domain Session ID
@@ -111,8 +102,6 @@ def track_google_analytics_event(data_to_write, **kwargs):
     # just to check how the next couple run
     logging.info(tracking_url)
 
-    # Not used in traditional event tracking
-    # tracking_url += "&cu=" + ez_get(data, "data", "currency") # currency
 
     # Note: this will always return 200
     resp = requests.post(tracking_url)
@@ -134,6 +123,7 @@ def write_dynamodb_item(dict_to_write, table, **kwargs):
     if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Write to {table}")
 
 
+
 # times = "2020-09-12T21:37:48Z"
 # timestamp = datetime.strptime(times.replace("T", " ").replace("Z", ""), "%Y-%m-%d %H:%M:%S")
 # timestamp = timestamp - timedelta(hours=7)
@@ -145,3 +135,15 @@ def write_dynamodb_item(dict_to_write, table, **kwargs):
 #     "value": 19900,
 #     "timestamp": timestamp,
 # }
+
+# tz_adjustment = 7 if is_timezone_in_daylight_savings("America/Los_Angeles") else 8
+# timestamp = timestamp - timedelta(hours=tz_adjustment)
+# - timedelta(hours=tz_adjustment)
+
+# I hate that I have to write this
+# def is_timezone_in_daylight_savings(zonename):
+#     os.environ['TZ'] = zonename
+#     return time.localtime().tm_isdst > 0
+
+# Not used in traditional event tracking
+# tracking_url += "&cu=" + ez_get(data, "data", "currency") # currency
