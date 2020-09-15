@@ -12,7 +12,9 @@ import requests
 
 ############################################################################################
 
-
+"""
+Both timestamps - the sale timestamp 'timestamp' and the write timestamp 'updatedAt' are UTC timezone-agnostics
+"""
 def lambda_handler(event, context):
     param_dict, missing_params = validate_params(event,
         required_params=["Secret_Key"],
@@ -72,6 +74,7 @@ A note on queue time (&qt):
     There are two latencies (both are accounted for):
          Event happened -> Webhook sent: avg 19000ms, range of 13-25s
          Lambda triggered -> GA POST: ~200-300ms total
+    Queue times > 4 hours silently fail the POST, so we modify the param if the true qt is above that
 """
 def track_google_analytics_event(data_to_write, **kwargs):
     tracking_url = "https://www.google-analytics.com/"
@@ -93,17 +96,19 @@ def track_google_analytics_event(data_to_write, **kwargs):
 
     tracking_url += "&qt=" + str(queue_time)
 
+    # Extract the Client ID from the Cross-Domain Session ID, if present
     if data_to_write.get("_ga"):
-        client_id = ez_split(data_to_write.get("_ga"), "-", 1) # extract the Client ID from the Cross-Domain Session ID
+        client_id = ez_split(data_to_write.get("_ga"), "-", 1)
         tracking_url += "&cid=" + client_id
-    else: # generate a random ID
+    # If not present, generate a random ID of the same length and shape
+    else:
         tracking_url += "&cid=" + str(int(random.random() * 10**8)) + "." + str(data_to_write.get("timestamp"))
 
     # just to check how the next couple run
     logging.info(tracking_url)
 
 
-    # Note: this will always return 200
+    # Note: this will always return status_code 200
     resp = requests.post(tracking_url)
     if os.getenv("DEBUG"): print(resp.text)
     if not kwargs.get("disable_print"): logging.info(f"Successfully did POST'd the information to Google Analytics")
