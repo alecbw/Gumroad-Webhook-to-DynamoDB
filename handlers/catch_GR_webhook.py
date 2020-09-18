@@ -2,7 +2,7 @@ from utility.util import ez_split, ez_get, validate_params, package_response
 
 import os
 import random
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs
 import logging
 
@@ -99,6 +99,47 @@ def track_google_analytics_event(data_to_write):
     logging.info("Successfully POST'd the information to Google Analytics")
 
 
+
+def check_for_existing_GA_purchase(data_to_write):
+    GMT_ADJUSTMENT = int(os.environ["GMT_ADJUSTMENT"])
+    GA_VIEW_ID = "ga:" + os.environ["GA_TOKEN"] if "ga:" not in os.environ["GA_TOKEN"] else os.environ["GA_TOKEN"]
+
+    adj_sale_timestamp = data_to_write["timestamp"] - (GMT_ADJUSTMENT * 60 * 60) #- timedelta(hours=5)
+    adj_sale_timestamp = datetime.utcfromtimestamp(adj_sale_timestamp)
+    ga_event_dateHourMinute = datetime.strftime(adj_sale_timestamp, "%Y%m%d%H%M") 
+
+    adj_date = (adj_sale_timestamp).strftime("%Y-%m-%d")
+
+    filters = f"ga:dateHourMinute==" + ga_event_dateHourMinute
+    filters += ";ga:eventAction==" + "purchased"
+    filters += ";ga:eventValue==" + str(data_to_write["value"])
+
+    reports_url = "https://www.googleapis.com/analytics/v3/data/ga"
+    reports_url += "?ids=" + GA_VIEW_ID
+    reports_url += "&start-date=" + adj_date
+    reports_url += "&end-date=" + adj_date
+    reports_url += "&metrics=" + "ga:totalEvents,ga:eventValue"
+    reports_url += "&dimensions=" + "ga:dataSource,ga:clientId,ga:dateHourMinute"
+    reports_url += "&filters=" + filters
+    reports_url += "&samplingLevel=" + "HIGHER_PRECISION"
+    
+    if os.getenv("DEBUG"):
+        logging.info(reports_url)
+
+    resp = requests.get(
+        reports_url,
+        headers={
+            "User-Agent": "Python Lambda: github.com/alecbw/Gumroad-to-Google-Analytics-Webhook",
+            "Authorization": "Bearer " + os.environ["GA_TOKEN"],
+        },
+    )
+    logging.info(f"Successfully looked up purchase timestamp; status code: {resp.status_code}")
+
+    if resp.json().get("totalResults") > 0:
+        logging.info("There is an existing purchase at the same time; this will not write this event to GA")
+        return True
+
+
 ########################### ~ Dynamo Write ~ ###################################################
 
 
@@ -137,7 +178,7 @@ def lambda_handler(event, context):
         return package_response("Please authenticate", 403, warn="please auth")
 
     if os.getenv("DEBUG"):
-        logging.info("\nYou are now in debug. Dynamo won't write, and the GA POST will be to the debug endpoint")
+        logging.info("\033[36m\nYou are now in debug. Dynamo won't write, and the GA POST will be to the debug endpoint\033[39m")
 
     # parse_qs writes every value as a list, so we subsequently unpack those lists
     webhook_data = parse_qs(event["body"])
@@ -147,7 +188,7 @@ def lambda_handler(event, context):
 
     data_to_write = {
         "email": webhook_data.pop("email"),
-        "timestamp": int(sale_timestamp.timestamp()),  # UTC Non-Adjusted
+        "timestamp": int(sale_timestamp.replace(tzinfo=timezone.utc).timestamp()),  # UTC Non-Adjusted
         "value": int(webhook_data.pop("price")),
         "offer_code": webhook_data.pop("offer_code", "No Code"),
         "country": webhook_data.pop("ip_country", "Unknown"),
@@ -161,6 +202,7 @@ def lambda_handler(event, context):
     if not os.getenv("DEBUG"):
         write_dynamodb_item(data_to_write, "GRWebhookData")
 
+    # if not check_for_existing_GA_purchase(data_to_write):
     track_google_analytics_event(data_to_write)
 
     logging.info("Dynamo write and GA POST both appear to be successful")
@@ -168,15 +210,3 @@ def lambda_handler(event, context):
 
 
 ###################################################################################################
-
-"""
-May implement later
-# Document location
-# "&dl=" + "https://gumroad.com/l/" + ez_get(data_to_write, "data", "permalink")
-
-# Document Path
-# "&dp=" + "/" + ez_get(data_to_write, "data", "permalink")
-
-# Document Title
-# "dt=" + "purchased a product"
-"""
