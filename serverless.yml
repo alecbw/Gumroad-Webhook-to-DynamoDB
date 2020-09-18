@@ -36,6 +36,9 @@ functions:
     environment:
       SECRET_KEY: ${env:SECRET_KEY}
       SENTRY_DSN: ${env:SENTRY_DSN}
+      GMT_ADJUSTMENT: ${env:GMT_ADJUSTMENT}
+      GA_VIEW_ID: ${env:GA_VIEW_ID}
+      GA_TOKEN: ${env:GA_TOKEN}
     events:
       - http:
           path: /webhook
@@ -105,6 +108,14 @@ resources:
             KeyType: RANGE
           Projection:
             ProjectionType: "ALL"
+
+
+# Ensures env vars are set
+custom:
+  scripts:
+    commands:
+      hello: This breaks the deploy if env vars aren't set. ${env:GMT_ADJUSTMENT}, ${env:GA_VIEW_ID},  ${env:GA_TOKEN}, ${env:SECRET_KEY}, ${env:SENTRY_DSN}
+
 
 package:
   exclude:
