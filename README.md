@@ -69,3 +69,5 @@ To take down the CloudFormation Stack and associated Lambda/Dynamo Tabe, use:
 ```
 sls remove
 ```
+
+A last note: Gumroad will retry the webhook up to 3 times (4 total invocations) over 15-20 minutes if you don't return a response to it. Both the Dynamo write and GA POST should upsert, rather than create duplicate entries, on each subsequent invocation of the same payload.
