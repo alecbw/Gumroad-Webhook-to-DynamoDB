@@ -11,7 +11,7 @@ import requests
 
 
 ################################ ~ GA POST and helpers ########################################
-# onst scopes = [''];
+
 
 """
 ClientID's identify non-logged-in users' devices.
@@ -202,8 +202,8 @@ def lambda_handler(event, context):
     if not os.getenv("DEBUG"):
         write_dynamodb_item(data_to_write, "GRWebhookData")
 
-    if not check_for_existing_GA_purchase(data_to_write):
-        track_google_analytics_event(data_to_write)
+    # if not check_for_existing_GA_purchase(data_to_write):
+    track_google_analytics_event(data_to_write)
 
     logging.info("Dynamo write and GA POST both appear to be successful")
     return package_response("Success", 200)
