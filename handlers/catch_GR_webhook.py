@@ -11,6 +11,7 @@ import requests
 
 
 ################################ ~ GA POST and helpers ########################################
+# onst scopes = [''];
 
 """
 ClientID's identify non-logged-in users' devices.
@@ -22,7 +23,6 @@ Here, we:
 2. If not present, generate a random ID of the same length and shape
     Generated IDs will have Source=(direct)	& Medium=(none) applied by default
 !. This code does not handle User IDs in any way.
-
 """
 
 def generate_clientid(webhook_data, sale_timestamp):
@@ -83,9 +83,6 @@ def track_google_analytics_event(data_to_write):
     tracking_url += "&cid=" + data_to_write["cid"]  # client ID
     tracking_url += "&qt=" + calculate_queue_time(data_to_write)
 
-    if os.getenv("DEBUG"):
-        logging.info(tracking_url)
-
     resp = requests.post(
         tracking_url,
         headers={
@@ -94,15 +91,19 @@ def track_google_analytics_event(data_to_write):
     )
 
     if os.getenv("DEBUG"):
-        print(resp.text)
+        logging.info(tracking_url)
+        logging.info(resp.text)
 
-    logging.info("Successfully POST'd the information to Google Analytics")
+    logging.debug("Successfully POST'd the information to Google Analytics")
 
 
-
+"""
+This checks for a purchase of the same value at the same minute as the sale_timestamp, timezone adjusted
+If there is one, we don't POST this webhook to GA
+"""
 def check_for_existing_GA_purchase(data_to_write):
     GMT_ADJUSTMENT = int(os.environ["GMT_ADJUSTMENT"])
-    GA_VIEW_ID = "ga:" + os.environ["GA_TOKEN"] if "ga:" not in os.environ["GA_TOKEN"] else os.environ["GA_TOKEN"]
+    GA_VIEW_ID = "ga:" + os.environ["GA_VIEW_ID"] if "ga:" not in os.environ["GA_TOKEN"] else os.environ["GA_TOKEN"]
 
     adj_sale_timestamp = data_to_write["timestamp"] - (GMT_ADJUSTMENT * 60 * 60) #- timedelta(hours=5)
     adj_sale_timestamp = datetime.utcfromtimestamp(adj_sale_timestamp)
@@ -135,7 +136,7 @@ def check_for_existing_GA_purchase(data_to_write):
     )
     logging.info(f"Successfully looked up purchase timestamp; status code: {resp.status_code}")
 
-    if resp.json().get("totalResults") > 0:
+    if resp.json() and resp.json().get("totalResults") > 0:
         logging.info("There is an existing purchase at the same time; this will not write this event to GA")
         return True
 
@@ -143,7 +144,7 @@ def check_for_existing_GA_purchase(data_to_write):
 ########################### ~ Dynamo Write ~ ###################################################
 
 
-# We do this before the GA POST just to be safe and have our own copy of the data
+# We do this before the GA POST just to be safe and to have our own copy of the data
 def write_dynamodb_item(dict_to_write, table):
     table = boto3.resource("dynamodb").Table(table)
     dict_to_write = {"Item": dict_to_write}
@@ -155,7 +156,7 @@ def write_dynamodb_item(dict_to_write, table):
         logging.error(dict_to_write)
         return False
 
-    logging.info(f"Successfully did a Dynamo Write to {table}")
+    logging.debug(f"Successfully did a Dynamo Write to {table}")
 
 
 ################################# ~ Main ~ ###################################################
@@ -165,9 +166,8 @@ def write_dynamodb_item(dict_to_write, table):
 Both timestamps - the sale_timestamp 'timestamp' and the write timestamp 'updatedAt' are UTC timezone-agnostic
 'value' ('price' in the GR webhook) is an int multiplied by 100 (e.g. $23.99 represented as 2399)
 The conversion back to dollars and cents is not handled here, so make sure you account for that
+Misc note: GMT and UTC are the same thing
 """
-
-
 def lambda_handler(event, context):
     param_dict, missing_params = validate_params(event,
          required_params=["Secret_Key"],
@@ -178,7 +178,7 @@ def lambda_handler(event, context):
         return package_response("Please authenticate", 403, warn="please auth")
 
     if os.getenv("DEBUG"):
-        logging.info("\033[36m\nYou are now in debug. Dynamo won't write, and the GA POST will be to the debug endpoint\033[39m")
+        logging.info("\033[36mYou are now in debug. Dynamo won't write, and the GA POST will be to the debug endpoint\033[39m\n")
 
     # parse_qs writes every value as a list, so we subsequently unpack those lists
     webhook_data = parse_qs(event["body"])
@@ -202,8 +202,8 @@ def lambda_handler(event, context):
     if not os.getenv("DEBUG"):
         write_dynamodb_item(data_to_write, "GRWebhookData")
 
-    # if not check_for_existing_GA_purchase(data_to_write):
-    track_google_analytics_event(data_to_write)
+    if not check_for_existing_GA_purchase(data_to_write):
+        track_google_analytics_event(data_to_write)
 
     logging.info("Dynamo write and GA POST both appear to be successful")
     return package_response("Success", 200)
