@@ -103,7 +103,7 @@ If there is one, we don't POST this webhook to GA
 """
 def check_for_existing_GA_purchase(data_to_write):
     GMT_ADJUSTMENT = int(os.environ["GMT_ADJUSTMENT"])
-    GA_VIEW_ID = "ga:" + os.environ["GA_VIEW_ID"] if "ga:" not in os.environ["GA_TOKEN"] else os.environ["GA_TOKEN"]
+    GA_VIEW_ID = "ga:" + os.environ["GA_VIEW_ID"] if "ga:" not in os.environ["GA_VIEW_ID"] else os.environ["GA_TOKEN"]
 
     adj_sale_timestamp = data_to_write["timestamp"] - (GMT_ADJUSTMENT * 60 * 60) #- timedelta(hours=5)
     adj_sale_timestamp = datetime.utcfromtimestamp(adj_sale_timestamp)
@@ -188,8 +188,9 @@ def lambda_handler(event, context):
 
     data_to_write = {
         "email": webhook_data.pop("email"),
+        "gifter_email": webhook_data.pop("gifter_email"),
         "timestamp": int(sale_timestamp.replace(tzinfo=timezone.utc).timestamp()),  # UTC Non-Adjusted
-        "value": int(webhook_data.pop("price")),
+        "value": int(webhook_data.pop("price")) or int(webhook_data.pop("gift_price")),
         "offer_code": webhook_data.pop("offer_code", "No Code"),
         "country": webhook_data.pop("ip_country", "Unknown"),
         "refunded": 1 if webhook_data.pop("refunded") in ["true", "True", True] else 0,
