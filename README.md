@@ -70,4 +70,10 @@ To take down the CloudFormation Stack and associated Lambda/Dynamo Tabe, use:
 sls remove
 ```
 
+If you want to check a particular purchase, lookup the ClientID with this GA Core Reporting API call (replace `VIEW_ID`, `CLIENT_ID`, and the `end-date`:
+```
+https://www.googleapis.com/analytics/v3/data/ga?ids=ga:VIEW_ID&start-date=2020-08-01&end-date=2020-09-21&metrics=ga:totalEvents,ga:eventValue,ga:sessions&dimensions=ga:dataSource,ga:dateHourMinute,ga:referralPath,ga:fullReferrer,ga:sourceMedium&filters=ga:clientId==CLIENT_ID&samplingLevel=HIGHER_PRECISION
+```
+
+
 A last note: Gumroad will retry the webhook up to 3 times (4 total invocations) over 15-20 minutes if you don't return a response to it. Both the Dynamo write and GA POST should upsert, rather than create duplicate entries, on each subsequent invocation of the same payload.
