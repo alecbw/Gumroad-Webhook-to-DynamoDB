@@ -10,7 +10,7 @@ import boto3
 import requests
 
 
-################################ ~ GA POST and helpers ########################################
+################################ ~ GA POST + GET and helpers ########################################
 
 
 """
@@ -103,7 +103,7 @@ If there is one, we don't POST this webhook to GA
 """
 def check_for_existing_GA_purchase(data_to_write):
     GMT_ADJUSTMENT = int(os.environ["GMT_ADJUSTMENT"])
-    GA_VIEW_ID = "ga:" + os.environ["GA_VIEW_ID"] if "ga:" not in os.environ["GA_VIEW_ID"] else os.environ["GA_TOKEN"]
+    GA_VIEW_ID = "ga:" + os.environ["GA_VIEW_ID"] if "ga:" not in os.environ["GA_VIEW_ID"] else os.environ["GA_VIEW_ID"]
 
     adj_sale_timestamp = data_to_write["timestamp"] - (GMT_ADJUSTMENT * 60 * 60) #- timedelta(hours=5)
     adj_sale_timestamp = datetime.utcfromtimestamp(adj_sale_timestamp)
@@ -111,9 +111,10 @@ def check_for_existing_GA_purchase(data_to_write):
 
     adj_date = (adj_sale_timestamp).strftime("%Y-%m-%d")
 
-    filters = f"ga:dateHourMinute==" + ga_event_dateHourMinute
-    filters += ";ga:eventAction==" + "purchased"
+    filters = "ga:eventAction==" + "purchased"
     filters += ";ga:eventValue==" + str(data_to_write["value"])
+    # filters += "ga:dateHourMinute==" + ga_event_dateHourMinute
+    filters += ";ga:dateHourMinute==" + str(ga_event_dateHourMinute) + ",ga:dateHourMinute==" + str(int(ga_event_dateHourMinute)-1)
 
     reports_url = "https://www.googleapis.com/analytics/v3/data/ga"
     reports_url += "?ids=" + GA_VIEW_ID
