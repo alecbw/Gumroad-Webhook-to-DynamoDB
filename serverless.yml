@@ -38,7 +38,7 @@ functions:
       SENTRY_DSN: ${env:SENTRY_DSN}
       GMT_ADJUSTMENT: ${env:GMT_ADJUSTMENT}
       GA_VIEW_ID: ${env:GA_VIEW_ID}
-      GA_TOKEN: ${env:GA_TOKEN}
+      GA_KEYS: ${env:GA_KEYS}
     events:
       - http:
           path: /webhook
@@ -114,8 +114,7 @@ resources:
 custom:
   scripts:
     commands:
-      hello: This breaks the deploy if env vars aren't set. ${env:GMT_ADJUSTMENT}, ${env:GA_VIEW_ID},  ${env:GA_TOKEN}, ${env:SECRET_KEY}, ${env:SENTRY_DSN}
-
+      hello: This breaks the deploy if env vars aren't set. ${env:GMT_ADJUSTMENT}, ${env:GA_VIEW_ID}, ${env:GA_KEYS}, ${env:SECRET_KEY}, ${env:SENTRY_DSN}
 
 package:
   exclude:

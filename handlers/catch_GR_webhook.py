@@ -1,6 +1,7 @@
 from utility.util import ez_split, ez_get, validate_params, package_response
 
 import os
+import json
 import random
 from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs
@@ -11,6 +12,25 @@ import requests
 
 
 ################################ ~ GA POST + GET and helpers ########################################
+
+
+
+"""
+A Google Service Account with configured Oauth2 ClientID can create a long-lived refresh token
+That refresh token can then be exchanged for a short-lived (1 hour) access token
+We fetch a new access token each invocation because it's easier than storing secrets' state
+"""
+
+def service_account_exchange_refresh_token_for_access_token(refresh_token_json):
+    refresh_token_json = json.loads(refresh_token_json)
+    
+    url = "https://accounts.google.com/o/oauth2/token?grant_type=refresh_token"
+    url += "&client_secret=" + refresh_token_json["GA_CLIENT_SECRET"]
+    url += "&client_id=" + refresh_token_json["GA_CLIENT_ID"]
+    url += "&refresh_token=" + refresh_token_json["GA_REFRESH_TOKEN"]
+
+    resp = requests.post(url)
+    return resp.json().get("access_token")
 
 
 """
@@ -24,7 +44,6 @@ Here, we:
     Generated IDs will have Source=(direct)	& Medium=(none) applied by default
 !. This code does not handle User IDs in any way.
 """
-
 def generate_clientid(webhook_data, sale_timestamp):
     if webhook_data.get("url_params[_ga]"):
         return ez_split(webhook_data.get("url_params[_ga]"), "-", 1)
@@ -67,7 +86,7 @@ def convert_geo_code(country):
 POSTs the event data to Google Analytics. There will be no request and it will always return 200 (unless in DEBUG)
 A note: the GA call will silently fail without a User Agent, even if the debug endpoint says it's valid
 """
-def track_google_analytics_event(data_to_write):
+def create_GA_event_with_webhook_data(data_to_write):
     tracking_url = "https://www.google-analytics.com/"
     if os.getenv("DEBUG"):
         tracking_url += "debug/"
@@ -87,7 +106,7 @@ def track_google_analytics_event(data_to_write):
         tracking_url,
         headers={
             "User-Agent": "Python Lambda: github.com/alecbw/Gumroad-to-Google-Analytics-Webhook"
-        },
+        }
     )
 
     if os.getenv("DEBUG"):
@@ -98,14 +117,15 @@ def track_google_analytics_event(data_to_write):
 
 
 """
-This checks for a purchase of the same value at the same minute as the sale_timestamp, timezone adjusted
-If there is one, we don't POST this webhook to GA
+This checks for a purchase of the same value at the same minute (or minute-1) as the sale_timestamp, timezone adjusted
+If there is one, we don't POST this webhook to GA, as that would create a duplicate event
 """
 def check_for_existing_GA_purchase(data_to_write):
     GMT_ADJUSTMENT = int(os.environ["GMT_ADJUSTMENT"])
     GA_VIEW_ID = "ga:" + os.environ["GA_VIEW_ID"] if "ga:" not in os.environ["GA_VIEW_ID"] else os.environ["GA_VIEW_ID"]
+    GA_TOKEN = service_account_exchange_refresh_token_for_access_token(os.environ["GA_KEYS"])
 
-    adj_sale_timestamp = data_to_write["timestamp"] - (GMT_ADJUSTMENT * 60 * 60) #- timedelta(hours=5)
+    adj_sale_timestamp = data_to_write["timestamp"] - (GMT_ADJUSTMENT * 60 * 60)
     adj_sale_timestamp = datetime.utcfromtimestamp(adj_sale_timestamp)
     ga_event_dateHourMinute = datetime.strftime(adj_sale_timestamp, "%Y%m%d%H%M") 
 
@@ -113,7 +133,6 @@ def check_for_existing_GA_purchase(data_to_write):
 
     filters = "ga:eventAction==" + "purchased"
     filters += ";ga:eventValue==" + str(data_to_write["value"])
-    # filters += "ga:dateHourMinute==" + ga_event_dateHourMinute
     filters += ";ga:dateHourMinute==" + str(ga_event_dateHourMinute) + ",ga:dateHourMinute==" + str(int(ga_event_dateHourMinute)-1)
 
     reports_url = "https://www.googleapis.com/analytics/v3/data/ga"
@@ -131,14 +150,15 @@ def check_for_existing_GA_purchase(data_to_write):
     resp = requests.get(
         reports_url,
         headers={
-            "User-Agent": "Python Lambda: github.com/alecbw/Gumroad-to-Google-Analytics-Webhook",
-            "Authorization": "Bearer " + os.environ["GA_TOKEN"],
-        },
+            "Authorization": "Bearer " + GA_TOKEN
+        }
     )
-    logging.info(f"Successfully looked up purchase timestamp; status code: {resp.status_code}")
 
-    if resp.json() and resp.json().get("totalResults") > 0:
-        logging.info("There is an existing purchase at the same time; this will not write this event to GA")
+    if "totalResults" not in resp.json():
+        logging.error(f"GA existing-purchase-check call has failed; status_code {resp.status_code}")
+
+    if "totalResults" in resp.json() and resp.json().get("totalResults") > 0:
+        logging.info("There is an existing purchase with the same value at the same time; this webhook will not be POST'd to GA")
         return True
 
 
@@ -179,7 +199,7 @@ def lambda_handler(event, context):
         return package_response("Please authenticate", 403, warn="please auth")
 
     if os.getenv("DEBUG"):
-        logging.info("\033[36mYou are now in debug. Dynamo won't write, and the GA POST will be to the debug endpoint\033[39m\n")
+        logging.info("\n\033[36mYou are now in debug. Dynamo won't write, and the GA POST will be to the debug endpoint\033[39m\n")
 
     # parse_qs writes every value as a list, so we subsequently unpack those lists
     webhook_data = parse_qs(event["body"])
@@ -187,11 +207,14 @@ def lambda_handler(event, context):
 
     sale_timestamp = datetime.strptime(webhook_data.pop("sale_timestamp").replace("Z", ""), "%Y-%m-%dT%H:%M:%S")
 
+    # if gift_price is included, price will be set to 0, and we should write the gift_price instead
+    transaction_value = int(webhook_data.pop("gift_price")) if "gift_price" in webhook_data else int(webhook_data.get("price", 0))
+
     data_to_write = {
         "email": webhook_data.pop("email"),
-        "gifter_email": webhook_data.pop("gifter_email"),
+        "gifter_email": webhook_data.pop("gifter_email", None),
         "timestamp": int(sale_timestamp.replace(tzinfo=timezone.utc).timestamp()),  # UTC Non-Adjusted
-        "value": int(webhook_data.pop("price")) or int(webhook_data.pop("gift_price")),
+        "value": transaction_value,
         "offer_code": webhook_data.pop("offer_code", "No Code"),
         "country": webhook_data.pop("ip_country", "Unknown"),
         "refunded": 1 if webhook_data.pop("refunded") in ["true", "True", True] else 0,
@@ -204,8 +227,8 @@ def lambda_handler(event, context):
     if not os.getenv("DEBUG"):
         write_dynamodb_item(data_to_write, "GRWebhookData")
 
-    # if not check_for_existing_GA_purchase(data_to_write):
-    track_google_analytics_event(data_to_write)
+    if not check_for_existing_GA_purchase(data_to_write):
+        create_GA_event_with_webhook_data(data_to_write)
 
     logging.info("Dynamo write and GA POST both appear to be successful")
     return package_response("Success", 200)
