@@ -144,8 +144,8 @@ def check_for_existing_GA_purchase(data_to_write):
     reports_url += "&filters=" + filters
     reports_url += "&samplingLevel=" + "HIGHER_PRECISION"
     
-    if os.getenv("DEBUG"):
-        logging.info(reports_url)
+    # if os.getenv("DEBUG"):
+    logging.info(reports_url)
 
     resp = requests.get(
         reports_url,
