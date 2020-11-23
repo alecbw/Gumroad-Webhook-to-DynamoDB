@@ -22,7 +22,7 @@ def lookup_GA_clientid(client_id):
     GA_TOKEN = service_account_exchange_refresh_token_for_access_token(os.environ["GA_KEYS"])
 
     today = datetime.utcnow()
-    start_date = (today - timedelta(days=60)).strftime("%Y-%m-%d")
+    start_date = (today - timedelta(days=90)).strftime("%Y-%m-%d")
     end_date = today.strftime("%Y-%m-%d")
 
     ga_cid_lookup_url = "https://www.googleapis.com/analytics/v3/data/ga"
@@ -153,7 +153,7 @@ def lookup_email_signup_in_ga(ml_timestamp):
 """
 if __name__ == "__main__":
 
-    start_at_timestamp = 1603678545
+    start_at_timestamp = 1605608471
     data_lod = scan_dynamodb("GRWebhookData", after={"timestamp": start_at_timestamp})
 
     logging.info(f"Starting after timestamp: {start_at_timestamp}")
