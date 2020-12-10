@@ -153,7 +153,7 @@ def lookup_email_signup_in_ga(ml_timestamp):
 """
 if __name__ == "__main__":
 
-    start_at_timestamp = 1605608471
+    start_at_timestamp = 1606687590
     data_lod = scan_dynamodb("GRWebhookData", after={"timestamp": start_at_timestamp})
 
     logging.info(f"Starting after timestamp: {start_at_timestamp}")
