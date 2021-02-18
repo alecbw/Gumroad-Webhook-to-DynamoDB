@@ -15,7 +15,7 @@ import requests
 
 
 """
-
+Looks up every session and event associated with a given ClientID in the list 90d
 """
 def lookup_GA_clientid(client_id):
     GA_VIEW_ID = "ga:" + os.environ["GA_VIEW_ID"] if "ga:" not in os.environ["GA_VIEW_ID"] else os.environ["GA_VIEW_ID"]
@@ -35,8 +35,6 @@ def lookup_GA_clientid(client_id):
     ga_cid_lookup_url += "&sort=" + "ga:dateHourMinute"
     ga_cid_lookup_url += "&samplingLevel=" + "HIGHER_PRECISION"
     
-    # logging.info(ga_cid_lookup_url)
-
     resp = requests.get(
         ga_cid_lookup_url,
         headers={
@@ -69,6 +67,9 @@ def lookup_GA_clientid(client_id):
     return ga_output_dict
 
 
+"""
+MailerLite is an ESP I was using; it tracked utm_source on email submission separately of GA, so I included it in this oneoff-file to enrich with additional source datapoints.
+"""
 def mailerlite_lookup(email):
     ml_lookup_url = "https://api.mailerlite.com/api/v2/subscribers/search"
     ml_lookup_url += "?query=" + email
@@ -93,6 +94,10 @@ def mailerlite_lookup(email):
     return ml_output_dict
 
 
+"""
+Takes the timestamp from the ML email lookup (ie when the email was added)
+and tries to find a GA session and/or event at the same timestamp
+"""
 def lookup_email_signup_in_ga(ml_timestamp):
     GMT_ADJUSTMENT = int(os.environ["GMT_ADJUSTMENT"])
     GA_VIEW_ID = "ga:" + os.environ["GA_VIEW_ID"] if "ga:" not in os.environ["GA_VIEW_ID"] else os.environ["GA_VIEW_ID"]
@@ -115,7 +120,7 @@ def lookup_email_signup_in_ga(ml_timestamp):
     ga_ts_lookup_url += "&filters=" + filters
     ga_ts_lookup_url += "&samplingLevel=" + "HIGHER_PRECISION"
 
-    # logging.info(ga_ts_lookup_url)
+    logging.debug(ga_ts_lookup_url)
 
     resp = requests.get(
         ga_ts_lookup_url,
@@ -127,9 +132,9 @@ def lookup_email_signup_in_ga(ml_timestamp):
     resp_lol = resp.json().get("rows")
 
     if not resp_lol:
-        # logging.info("No GA Goal Completion for Email Signup found at this timestamp")
+        logging.debug("No GA Goal Completion for Email Signup found at this timestamp")
         return {
-            "signup_ga_timestamp": ga_timestamp #resp_lol[0][2],
+            "signup_ga_timestamp": ga_timestamp
         }
 
     if len(resp_lol) > 1:
@@ -141,7 +146,7 @@ def lookup_email_signup_in_ga(ml_timestamp):
         "signup_ga_timestamp": resp_lol[0][2],
         "signup_sourcemedium": resp_lol[0][3],
         "signup_referrer": resp_lol[0][4],
-        "signup_clientid": '"' + resp_lol[0][5] + '"', # prevent truncation
+        "signup_clientid": '"' + resp_lol[0][5] + '"', # prevent truncation in Excel/Gsheets
     }
 
     return ga_matched_signup_dict
@@ -153,7 +158,7 @@ def lookup_email_signup_in_ga(ml_timestamp):
 """
 if __name__ == "__main__":
 
-    start_at_timestamp = 1606687590
+    start_at_timestamp = int(os.environ["START_AT_TIMESTAMP"])
     data_lod = scan_dynamodb("GRWebhookData", after={"timestamp": start_at_timestamp})
 
     logging.info(f"Starting after timestamp: {start_at_timestamp}")

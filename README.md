@@ -75,5 +75,6 @@ If you want to check a particular purchase, lookup the ClientID with this GA Cor
 https://www.googleapis.com/analytics/v3/data/ga?ids=ga:VIEW_ID&start-date=2020-08-01&end-date=2020-09-21&metrics=ga:totalEvents,ga:eventValue,ga:sessions&dimensions=ga:dataSource,ga:dateHourMinute,ga:referralPath,ga:fullReferrer,ga:sourceMedium&filters=ga:clientId==CLIENT_ID&samplingLevel=HIGHER_PRECISION
 ```
 
+Also included is `check_purchase_clientids`, a script I would run locally to enrich a given time range with GA data
 
 A last note: Gumroad will retry the webhook up to 3 times (4 total invocations) over 15-20 minutes if you don't return a response to it. Both the Dynamo write and GA POST should upsert, rather than create duplicate entries, on each subsequent invocation of the same payload.
